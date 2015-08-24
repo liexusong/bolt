@@ -25,7 +25,6 @@
 #include "connection.h"
 #include "worker.h"
 
-
 bolt_setting_t _setting, *setting;
 bolt_service_t _service, *service;
 
@@ -56,11 +55,46 @@ bolt_accept_handler(int sock, short event, void *arg)
 
 int bolt_init_env()
 {
+    /* Init cache lock and task lock */
+    if (pthread_mutex_init(&service->cache_lock, NULL) == -1
+        || pthread_mutex_init(&service->task_lock, NULL) == -1)
+    {
+        return -1;
+    }
+
+    /* Init task condition */
+    if (pthread_cond_init(&service->task_cond) == -1) {
+        return -1;
+    }
+
+    /* Create cache HashTable and waiting HashTable */
+    if ((service->cache_htb = jk_hash_new(0, NULL, NULL)) == NULL
+        || (service->waiting_htb = jk_hash_new(0, NULL, NULL)) == NULL)
+    {
+        return -1;
+    }
+
+    INIT_LIST_HEAD(&service->gc_lru);
+    INIT_LIST_HEAD(&service->task_queue);
+
+    /* Create listen socket */
     service->sock = bolt_listen_socket(setting->host,
                                        setting->port, 1);
     if (service->sock == -1) {
         return -1;
     }
+
+    /* Add listen socket to libevent */
+    event_set(&service->event, service->sock,
+              EV_READ|EV_PERSIST, bolt_accept_handler, NULL);
+    event_base_set(service->evbase, &service->event);
+    if (event_add(&service->event, NULL) == -1) {
+        return -1;
+    }
+
+    service->connections = 0;
+
+    return 0;
 }
 
 

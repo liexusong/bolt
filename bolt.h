@@ -13,6 +13,17 @@
 #define  BOLT_WBUF_SIZE        512
 
 
+#define  BOLT_LF  '\n'
+#define  BOLT_CR  '\r'
+
+
+#define  BOLT_HTTP_STATE_START     0
+#define  BOLT_HTTP_STATE_CR        1
+#define  BOLT_HTTP_STATE_CRLF      2
+#define  BOLT_HTTP_STATE_CRLFCR    3
+#define  BOLT_HTTP_STATE_CRLFCRLF  4
+
+
 typedef struct {
     char *host;
     short port;
@@ -57,7 +68,8 @@ typedef struct {
 typedef struct {
     struct list_head link;  /* Link waiting queue/free queue */
     int sock;
-    int state;
+    int recv_state;
+    int send_state;
     struct event revent;
     struct event wevent;
     int revset:1;
@@ -66,6 +78,7 @@ typedef struct {
     char rbuf[BOLT_RBUF_SIZE];
     char *rpos;
     char *rend;
+    char *rlast;
     char wbuf[BOLT_WBUF_SIZE];
     bolt_cache_t *icache;
 } bolt_connection_t;
