@@ -7,8 +7,10 @@
 #include "hash.h"
 #include "list.h"
 
-#define  BOLT_MIN_CACHE_SIZE   (1024 * 1024 * 10)
+#define  BOLT_MIN_CACHE_SIZE   (1024 * 1024 * 10)    /* 10MB */
 #define  BOLT_FILENAME_LENGTH  1024
+#define  BOLT_RBUF_SIZE        2048
+#define  BOLT_WBUF_SIZE        512
 
 
 typedef struct {
@@ -53,12 +55,28 @@ typedef struct {
 
 
 typedef struct {
+    struct list_head link;  /* Link waiting queue/free queue */
+    int sock;
+    int state;
+    struct event revent;
+    struct event wevent;
+    int revset:1;
+    int wevset:1;
+    struct http_parser hp;
+    char rbuf[BOLT_RBUF_SIZE];
+    char *rpos;
+    char *rend;
+    char wbuf[BOLT_WBUF_SIZE];
+    bolt_cache_t *icache;
+} bolt_connection_t;
+
+
+typedef struct {
     struct list_head link;  /* Link all tasks */
     char file[BOLT_FILENAME_LENGTH];
     int width;
     int height;
     int quality;
 } bolt_task_t;
-
 
 #endif

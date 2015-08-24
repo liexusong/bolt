@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include "bolt.h"
 #include "net.h"
+#include "connection.h"
+#include "worker.h"
 
 
 bolt_setting_t _setting, *setting;
@@ -151,6 +153,9 @@ int main(int argc, char *argv[])
     if (bolt_init_env() == -1) {
         exit(1);
     }
+
+    bolt_init_connections();
+    bolt_init_workers(setting->workers);
 
     event_base_dispatch(service->ebase); /* Running */
 
