@@ -371,6 +371,11 @@ bolt_connection_process_request(bolt_connection_t *c)
           c->filename_len, &cache) == JK_HASH_OK)
     {
         __sync_add_and_fetch(&cache->refcount, 1);
+
+        /* move cache to LRU tail */
+        list_del(&cache->link);
+        list_add_tail(&cache->link, &service->gc_lru);
+
         c->cache = cache;
         action = 0;
 

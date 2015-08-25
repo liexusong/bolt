@@ -141,6 +141,7 @@ bolt_worker_process(void *arg)
 
         jk_hash_insert(&service->cache_htb,
                        task->filename, task->fnlen, cache);
+        list_add_tail(&cache->link, &service->gc_lru);
 
         if (jk_hash_find(&service->waiting_htb,
              task->filename, task->fnlen, &waitq) == JK_HASH_OK)

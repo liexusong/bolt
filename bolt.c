@@ -35,6 +35,7 @@ bolt_accept_handler(int sock, short event, void *arg)
     struct sockaddr_in addr;
     int nsock, size;
 
+again:
     nsock = accept(sock, (struct sockaddr*)&addr, &size);
     if (nsock == -1) {
         return;
@@ -48,7 +49,7 @@ bolt_accept_handler(int sock, short event, void *arg)
     if (bolt_create_connection(nsock) == NULL) {
     }
 
-    return;
+    goto again;
 }
 
 
