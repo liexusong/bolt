@@ -1,3 +1,3 @@
 Bolt
 ====
-Bolt - The Realtime Compress Image System
+Bolt - The Realtime Image Compress System
