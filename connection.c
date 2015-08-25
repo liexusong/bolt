@@ -110,11 +110,9 @@ bolt_create_connection(int sock)
     c->revset = 0;
     c->wevset = 0;
     c->parse_error = 0;
-    c->wakeup_close = 0;
     c->rpos = c->rbuf;
     c->rend = c->rbuf + BOLT_RBUF_SIZE;
     c->rlast = c->rbuf;
-    c->icache = NULL;
 
     http_parser_init(&c->hp, HTTP_REQUEST);
     c->hp.data = c;
@@ -194,7 +192,11 @@ bolt_connection_recv_completed(bolt_connection_t *c)
         c->rlast++;
     }
 
-    return c->recv_state == BOLT_HTTP_STATE_CRLFCRLF ? 0 : -1;
+    if (c->recv_state == BOLT_HTTP_STATE_CRLFCRLF) {
+        return 0;
+    }
+
+    return -1;
 }
 
 
@@ -206,6 +208,39 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
     char last;
 
     if (!c || c->sock != sock) {
+        return;
+    }
+
+again:
+    if (bolt_connection_recv_completed(c) == 0) {
+        retval = http_parser_execute(&c->hp, &http_parser_callbacks,
+                                     c->rbuf, c->rlast - c->rbuf);
+
+        if (c->hp.method != HTTP_GET) {
+            bolt_free_connection(c);
+            return;
+        }
+
+        /* Process connection request */
+
+        if (bolt_connection_process_request(c) == 0) {
+            moveb = c->rpos - c->rlast;
+
+            if (moveb > 0) {
+                memmove(c->rbuf, c->rlast, moveb);
+                c->rlast = c->rbuf;
+                c->rpos = c->rbuf + moveb;
+
+            } else {
+                c->rlast = c->rpos = c->rbuf;
+            }
+
+            c->recv_state = BOLT_HTTP_STATE_START; /* reset state */
+
+        } else {
+            bolt_free_connection(c);
+        }
+
         return;
     }
 
@@ -232,33 +267,7 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
 
     c->rpos += nbytes;
 
-    if (bolt_connection_recv_completed(c) == 0) {
-        retval = http_parser_execute(&c->hp, &http_parser_callbacks,
-                                     c->rbuf, c->rlast - c->rbuf);
-
-        if (c->hp.method != HTTP_GET) {
-            bolt_free_connection(c);
-            return;
-        }
-
-        /* Process connection request */
-
-        if (bolt_connection_process_request(c) == 0) {
-            moveb = c->rpos - c->rlast;
-
-            if (moveb > 0) { /* move remain stream to head */
-                memmove(c->rbuf, c->rlast, moveb);
-                c->rlast = c->rbuf;
-                c->rpos = c->rbuf + moveb;
-
-            } else {
-                c->rlast = c->rpos = c->rbuf;
-            }
-
-        } else {
-            bolt_free_connection(c);
-        }
-    }
+    goto again;
 }
 
 
@@ -270,6 +279,21 @@ bolt_connection_send_handler(int sock, short event, void *arg)
 
     if (!c || c->sock != sock) {
         return;
+    }
+
+again:
+    if (c->wpos >= c->wend) {
+        if (c->send_state == BOLT_SEND_HEADER_STATE) {
+            c->wpos = (char *)c->icache->cache;
+            c->wend = c->wpos + c->icache->size;
+            c->send_state = BOLT_SEND_CONTENT_STATE;
+
+        } else if (c->send_state == BOLT_SEND_CONTENT_STATE) {
+            __sync_sub_and_fetch(&c->icache->refcount, 1);
+            bolt_connection_remove_wevent(c); /* remove write event */
+            bolt_connection_recv_handler(c->sock, EV_READ, c);
+            return;
+        }
     }
 
     nsend = c->wend - c->wpos;
@@ -290,22 +314,7 @@ bolt_connection_send_handler(int sock, short event, void *arg)
 
     c->wpos += nbytes;
 
-    if (c->wpos >= c->wend) {
-
-        switch (c->send_state) {
-        case BOLT_SEND_HEADER_STATE:
-            c->wpos = c->icache->cache;
-            c->wend = c->icache->size;
-            c->send_state = BOLT_SEND_CONTENT_STATE;
-            break;
-
-        case BOLT_SEND_CONTENT_STATE:
-            __sync_sub_and_fetch(&c->icache->refcount, 1);
-            bolt_connection_remove_wevent(c); /* remove write event */
-            bolt_connection_recv_handler(c->sock, EV_READ, c);
-            break;
-        }
-    }
+    goto again;
 }
 
 

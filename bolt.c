@@ -56,7 +56,7 @@ void
 bolt_wakeup_handler(int sock, short event, void *arg)
 {
     char byte;
-    struct list_head *e, *n;
+    struct list_head *e;
     bolt_wait_queue_t *waitq;
     bolt_connection_t *c;
 
@@ -65,7 +65,6 @@ bolt_wakeup_handler(int sock, short event, void *arg)
     }
 
 agian:
-
     if (read(sock, (char *)&byte, 1) != 1) {
         return;
     }
@@ -84,7 +83,7 @@ agian:
         goto agian;
     }
 
-    list_for_each_safe(e, n, &waitq->wait_conns) {
+    list_for_each(e, &waitq->wait_conns) {
         c = list_entry(e, bolt_connection_t, link);
 
         switch (c->wakeup_go) {

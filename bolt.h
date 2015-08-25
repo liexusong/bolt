@@ -92,16 +92,18 @@ typedef struct {
     int revset:1;
     int wevset:1;
     struct http_parser hp;
+    /* read buffer */
     char rbuf[BOLT_RBUF_SIZE];
     char *rpos;
     char *rend;
     char *rlast;
+    /* write buffer */
     char wbuf[BOLT_WBUF_SIZE];
     char *wpos;
     char *wend;
+    bolt_cache_t *icache;
     int fnlen;
     char filename[BOLT_FILENAME_LENGTH];
-    bolt_cache_t *icache;
 } bolt_connection_t;
 
 
