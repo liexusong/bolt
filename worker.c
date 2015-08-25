@@ -10,10 +10,7 @@ typedef struct {
 } bolt_compress_t;
 
 
-static bolt_compress_t compress_work;
-
-
-int
+bolt_compress_t *
 bolt_worker_parse_task(bolt_task_t *task)
 {
     
@@ -97,6 +94,7 @@ void *
 bolt_worker_process(void *arg)
 {
     bolt_task_t       *task = NULL;
+    bolt_compress_t   *work = NULL;
     struct list_head  *e;
     char              *blob;
     int                length;
@@ -121,13 +119,12 @@ bolt_worker_process(void *arg)
 
         pthread_mutex_unlock(&service->task_lock);
 
-        if (bolt_worker_parse_task(task) == -1) {
+        if ((work = bolt_worker_parse_task(task)) == NULL) {
             goto error;
         }
 
-        blob = bolt_worker_compress(compress_work.path, compress_work.quality,
-                                    compress_work.width, compress_work.height,
-                                    &length);
+        blob = bolt_worker_compress(work.path, work.quality,
+                                    work.width, work.height, &length);
         if (NULL == blob
             || NULL == (cache = malloc(sizeof(*cache))))
         {
@@ -173,10 +170,11 @@ bolt_worker_process(void *arg)
         memory_used = __sync_add_and_fetch(&service->memused, length);
 
         if (memory_used > setting->max_cache) { /* need start GC? */
-            //bolt_gc_start();
+            bolt_gc_start();
         }
 
         if (task) free(task);
+        if (work) free(work);
 
         continue;
 
@@ -207,6 +205,7 @@ error:
         }
 
         if (task) free(task);
+        if (work) free(work);
     }
 }
 

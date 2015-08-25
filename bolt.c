@@ -52,6 +52,52 @@ bolt_accept_handler(int sock, short event, void *arg)
 }
 
 
+void
+bolt_wakeup_handler(int sock, short event, void *arg)
+{
+    char byte;
+    struct list_head *e, *n;
+    bolt_wait_queue_t *waitq;
+    bolt_connection_t *c;
+
+agian:
+
+    if (read(sock, (char *)&byte, 1) != 1) {
+        return;
+    }
+
+    pthread_mutex_lock(&service->wakeup_lock);
+
+    e = service->wakeup_queue.next;
+    if (e != &service->wakeup_queue) {
+        waitq = list_entry(e, bolt_wait_queue_t, link);
+        list_del(e);
+    }
+
+    pthread_mutex_unlock(&service->wakeup_lock);
+
+    if (!waitq) {
+        goto agian;
+    }
+
+    list_for_each_safe(e, n, &waitq->wait_conns) {
+        c = list_entry(e, bolt_connection_t, link);
+
+        switch (c->wakeup_go) {
+        case BOLT_WAKEUP_CLOSE:
+            bolt_free_connection(c);
+            break;
+        case BOLT_WAKEUP_SEND:
+            bolt_connection_begin_send(c);
+            break;
+        }
+    }
+
+    free(waitq);
+
+    goto agian;
+}
+
 
 int bolt_init_env()
 {
