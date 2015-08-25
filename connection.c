@@ -26,9 +26,11 @@ static struct http_parser_settings http_parser_callbacks = {
 };
 
 
-void bolt_init_connections()
+int
+bolt_init_connections()
 {
     freeconn_count = 0;
+    return 0;
 }
 
 

@@ -60,6 +60,10 @@ bolt_wakeup_handler(int sock, short event, void *arg)
     bolt_wait_queue_t *waitq;
     bolt_connection_t *c;
 
+    if (sock != service->wakeup_notify[0]) {
+        return;
+    }
+
 agian:
 
     if (read(sock, (char *)&byte, 1) != 1) {
@@ -99,7 +103,7 @@ agian:
 }
 
 
-int bolt_init_env()
+int bolt_init_service()
 {
     /* Init cache lock and task lock */
     if (pthread_mutex_init(&service->cache_lock, NULL) == -1
@@ -132,11 +136,26 @@ int bolt_init_env()
         return -1;
     }
 
+    /* Init wakeup context */
+    if (pipe(service->wakeup_notify) == -1
+        || bolt_set_noblock(service->wakeup_notify[0]) == -1)
+    {
+        return -1;
+    }
+
     /* Add listen socket to libevent */
     event_set(&service->event, service->sock,
               EV_READ|EV_PERSIST, bolt_accept_handler, NULL);
     event_base_set(service->evbase, &service->event);
     if (event_add(&service->event, NULL) == -1) {
+        return -1;
+    }
+
+    /* Add wakeup notify fd to libevent */
+    event_set(&service->wakeup_event, service->wakeup_notify[0],
+              EV_READ|EV_PERSIST, bolt_wakeup_handler, NULL);
+    event_base_set(service->evbase, &service->wakeup_event);
+    if (event_add(&service->wakeup_event, NULL) == -1) {
         return -1;
     }
 
@@ -232,12 +251,12 @@ int main(int argc, char *argv[])
 
     bolt_parse_options(argc, argv);
 
-    if (bolt_init_env() == -1) {
+    if (bolt_init_service() == -1
+        || bolt_init_connections() == -1
+        || bolt_init_workers() == -1)
+    {
         exit(1);
     }
-
-    bolt_init_connections();
-    bolt_init_workers(setting->workers);
 
     event_base_dispatch(service->ebase); /* Running */
 

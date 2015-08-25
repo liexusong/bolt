@@ -65,6 +65,7 @@ typedef struct {
     pthread_mutex_t wakeup_lock;
     struct list_head wakeup_queue;
     int wakeup_notify[2];
+    struct event wakeup_event;
 
     int connections;
     int memused;
