@@ -96,7 +96,7 @@ failed:
 void *
 bolt_worker_process(void *arg)
 {
-    bolt_task_t       *task;
+    bolt_task_t       *task = NULL;
     struct list_head  *e;
     char              *blob;
     int                length;
@@ -104,6 +104,7 @@ bolt_worker_process(void *arg)
     struct list_head  *waitq;
     int                wakeup;
     bolt_connection_t *c;
+    int                memory_used;
 
     for (;;) {
         wakeup = 0;
@@ -169,6 +170,14 @@ bolt_worker_process(void *arg)
             write(&service->wakeup_notify[1], "\0", 1);
         }
 
+        memory_used = __sync_add_and_fetch(&service->memused, length);
+
+        if (memory_used > setting->max_cache) { /* need start GC? */
+            //bolt_gc_start();
+        }
+
+        if (task) free(task);
+
         continue;
 
 error:
@@ -196,6 +205,8 @@ error:
 
             write(&service->wakeup_notify[1], "\0", 1);
         }
+
+        if (task) free(task);
     }
 }
 

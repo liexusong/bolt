@@ -1,5 +1,5 @@
 /*
- * Bolt - The Realtime Compress Image System
+ * Bolt - The Realtime Image Compress System
  * Copyright (c) 2015 - 2016, Liexusong <280259971@qq.com>
  * All rights reserved.
  *
