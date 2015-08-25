@@ -284,12 +284,15 @@ again:
 
     nbytes = read(c->sock, c->rpos, remain);
     if (nbytes < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            bolt_free_connection(conn);
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            if (bolt_connection_install_revent(c,
+                   bolt_connection_recv_handler) == 0)
+            {
+                return;
+            }
         }
 
-        bolt_connection_install_revent(c,
-                                       bolt_connection_recv_handler);
+        bolt_free_connection(conn);
         return;
 
     } else if (nbytes == 0) {
@@ -364,11 +367,15 @@ again:
 
     nbytes = write(c->sock, c->wpos, nsend);
     if (nbytes < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            bolt_free_connection(conn);
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            if (bolt_connection_install_wevent(c,
+                   bolt_connection_send_handler) == 0)
+            {
+                return;
+            }
         }
-        bolt_connection_install_wevent(c,
-                                       bolt_connection_send_handler)
+
+        bolt_free_connection(conn);
         return;
 
     } else if (nbytes == 0) {
