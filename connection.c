@@ -118,7 +118,7 @@ bolt_create_connection(int sock)
     c->hp.data = c;
 
     if (bolt_connection_install_revent(c,
-         bolt_connection_recv_handler) == -1)
+          bolt_connection_recv_handler) == -1)
     {
         bolt_free_connection(c);
         return NULL;
@@ -218,6 +218,9 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             bolt_free_connection(conn);
         }
+
+        bolt_connection_install_revent(c,
+                                       bolt_connection_recv_handler);
         return;
 
     } else if (nbytes == 0) {
@@ -274,6 +277,8 @@ bolt_connection_send_handler(int sock, short event, void *arg)
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             bolt_free_connection(conn);
         }
+        bolt_connection_install_wevent(c,
+                                       bolt_connection_send_handler)
         return;
 
     } else if (nbytes == 0) {
@@ -308,9 +313,8 @@ bolt_connection_send_handler(int sock, short event, void *arg)
     "Server: Bolt\r\n"                    \
     "Content-Length: %d\r\n\r\n"
 
-
 void
-bolt_connection_build_header(bolt_connection_t *c)
+bolt_connection_begin_send(bolt_connection_t *c)
 {
     int nsend;
 
@@ -319,23 +323,9 @@ bolt_connection_build_header(bolt_connection_t *c)
 
     c->wpos = c->wbuf;
     c->wend = c->wbuf + nsend;
-}
-
-
-int
-bolt_connection_begin_send(bolt_connection_t *c)
-{
-    bolt_connection_build_header(c);
-
     c->send_state = BOLT_SEND_HEADER_STATE;
 
-    if (bolt_connection_install_wevent(c,
-         bolt_connection_send_handler) == -1)
-    {
-        return -1;
-    }
-
-    return 0;
+    bolt_connection_send_handler(c->sock, EV_WRITE, c);
 }
 
 
@@ -398,10 +388,8 @@ bolt_connection_process_request(bolt_connection_t *c)
         pthread_cond_signal(&service->task_cond, &service->task_lock);
         pthread_mutex_unlock(&service->task_lock);
 
-	} else {
-        if (bolt_connection_begin_send(c) == -1) {
-            return -1;
-        }
+    } else {
+        bolt_connection_begin_send(c);
     }
 
     bolt_connection_remove_revent(c); /* remove read event */

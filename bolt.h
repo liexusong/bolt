@@ -116,4 +116,8 @@ typedef struct {
     struct list_head wait_conns;
 } bolt_wait_queue_t;
 
+
+extern bolt_setting_t *setting;
+extern bolt_service_t *service;
+
 #endif
