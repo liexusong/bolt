@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include "bolt.h"
 #include "connection.h"
+#include "special_response.h"
 
 #define BOLT_MAX_FREE_CONNS  1024
 
@@ -315,15 +316,34 @@ bolt_connection_send_handler(int sock, short event, void *arg)
 again:
     if (c->wpos >= c->wend) {
 
-        if (c->send_state == BOLT_SEND_HEADER_STATE
-            && c->http_code == 200)
-        {
-            c->wpos = (char *)c->icache->cache;
-            c->wend = c->wpos + c->icache->size;
+        if (c->send_state == BOLT_SEND_HEADER_STATE) {
+            switch (c->http_code) {
+            case 200:
+                c->wpos = (char *)c->icache->cache;
+                c->wend = c->wpos + c->icache->size;
+                break;
+
+            case 400:
+                c->wpos = bolt_error_400_page;
+                c->wend = c->wpos + sizeof(bolt_error_400_page) - 1;
+                break;
+
+            case 404:
+                c->wpos = bolt_error_404_page;
+                c->wend = c->wpos + sizeof(bolt_error_404_page) - 1;
+                break;
+
+            case 500:
+            default:
+                c->wpos = bolt_error_500_page;
+                c->wend = c->wpos + sizeof(bolt_error_500_page) - 1;
+                break;
+            }
+            
             c->send_state = BOLT_SEND_CONTENT_STATE;
 
         } else {
-            if (c->send_state == BOLT_SEND_CONTENT_STATE) {
+            if (c->http_code == 200) {
                 __sync_sub_and_fetch(&c->icache->refcount, 1);
                 c->icache = NULL;
             }
@@ -381,16 +401,18 @@ bolt_connection_begin_send(bolt_connection_t *c)
         nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
                          "HTTP/1.1 400 Bad Request\r\n"
                          "Content-Type: text/html\r\n"
-                         "Content-Length: 0\r\n"
-                         "Server: Bolt\r\n\r\n");
+                         "Content-Length: %d\r\n"
+                         "Server: Bolt\r\n\r\n",
+                         sizeof(bolt_error_400_page) - 1);
         break;
 
     case 404:
         nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
                          "HTTP/1.1 404 Not Found\r\n"
                          "Content-Type: text/html\r\n"
-                         "Content-Length: 0\r\n"
-                         "Server: Bolt\r\n\r\n");
+                         "Content-Length: %d\r\n"
+                         "Server: Bolt\r\n\r\n",
+                         sizeof(bolt_error_404_page) - 1);
         break;
 
     case 500:
@@ -398,8 +420,9 @@ bolt_connection_begin_send(bolt_connection_t *c)
         nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
                          "HTTP/1.1 500 Internal Server Error\r\n"
                          "Content-Type: text/html\r\n"
-                         "Content-Length: 0\r\n"
-                         "Server: Bolt\r\n\r\n");
+                         "Content-Length: %d\r\n"
+                         "Server: Bolt\r\n\r\n",
+                         sizeof(bolt_error_500_page) - 1);
         break;
     }
 

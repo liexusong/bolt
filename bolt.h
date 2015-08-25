@@ -13,8 +13,9 @@
 #define  BOLT_WBUF_SIZE        512
 
 
-#define  BOLT_LF  '\n'
-#define  BOLT_CR  '\r'
+#define  BOLT_LF    '\n'
+#define  BOLT_CR    '\r'
+#define  BOLT_CRLF  "\r\n"
 
 
 #define  BOLT_HTTP_STATE_START     0
