@@ -24,6 +24,14 @@
 #define  BOLT_HTTP_STATE_CRLFCRLF  4
 
 
+#define  BOLT_SEND_HEADER_STATE    1
+#define  BOLT_SEND_CONTENT_STATE   2
+
+
+#define  BOLT_WAKEUP_CLOSE         1
+#define  BOLT_WAKEUP_SEND          2
+
+
 typedef struct {
     char *host;
     short port;
@@ -53,7 +61,13 @@ typedef struct {
     pthread_cond_t task_cond;
     struct list_head task_queue;
 
+    /* Wakeup queue info */
+    pthread_mutex_t wakeup_lock;
+    struct list_head wakeup_queue;
+    int wakeup_notify[2];
+
     int connections;
+    int memused;
 } bolt_service_t;
 
 
@@ -70,6 +84,8 @@ typedef struct {
     int sock;
     int recv_state;
     int send_state;
+    int parse_error;
+    int wakeup_go;
     struct event revent;
     struct event wevent;
     int revset:1;
@@ -80,16 +96,24 @@ typedef struct {
     char *rend;
     char *rlast;
     char wbuf[BOLT_WBUF_SIZE];
+    char *wpos;
+    char *wend;
+    int fnlen;
+    char filename[BOLT_FILENAME_LENGTH];
     bolt_cache_t *icache;
 } bolt_connection_t;
 
 
 typedef struct {
     struct list_head link;  /* Link all tasks */
-    char file[BOLT_FILENAME_LENGTH];
-    int width;
-    int height;
-    int quality;
+    int fnlen;
+    char filename[BOLT_FILENAME_LENGTH];
 } bolt_task_t;
+
+
+typedef struct {
+    struct list_head link;  /* Link all wait queue */
+    struct list_head wait_conns;
+} bolt_wait_queue_t;
 
 #endif

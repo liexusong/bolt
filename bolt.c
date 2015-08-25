@@ -57,7 +57,8 @@ int bolt_init_env()
 {
     /* Init cache lock and task lock */
     if (pthread_mutex_init(&service->cache_lock, NULL) == -1
-        || pthread_mutex_init(&service->task_lock, NULL) == -1)
+        || pthread_mutex_init(&service->task_lock, NULL) == -1
+        || pthread_mutex_init(&service->wakeup_lock, NULL) == -1)
     {
         return -1;
     }
@@ -76,6 +77,7 @@ int bolt_init_env()
 
     INIT_LIST_HEAD(&service->gc_lru);
     INIT_LIST_HEAD(&service->task_queue);
+    INIT_LIST_HEAD(&service->wakeup_queue);
 
     /* Create listen socket */
     service->sock = bolt_listen_socket(setting->host,
@@ -93,6 +95,7 @@ int bolt_init_env()
     }
 
     service->connections = 0;
+    service->memused = 0;
 
     return 0;
 }
@@ -171,7 +174,6 @@ void bolt_parse_options(int argc, char *argv[])
         }
     }
 }
-
 
 
 int main(int argc, char *argv[])
