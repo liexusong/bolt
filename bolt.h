@@ -28,10 +28,6 @@
 #define  BOLT_SEND_CONTENT_STATE   2
 
 
-#define  BOLT_WAKEUP_CLOSE         1
-#define  BOLT_WAKEUP_SEND          2
-
-
 typedef struct {
     char *host;
     short port;
@@ -83,11 +79,11 @@ typedef struct {
 typedef struct {
     struct list_head link;  /* Link waiting queue/free queue */
     int sock;
+    int http_code;
     int recv_state;
     int send_state;
     int keepalive;
     int parse_error;
-    int wakeup_go;
     struct event revent;
     struct event wevent;
     int revset:1;

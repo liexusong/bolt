@@ -86,16 +86,7 @@ agian:
 
     list_for_each(e, &waitq->wait_conns) {
         c = list_entry(e, bolt_connection_t, link);
-
-        switch (c->wakeup_go) {
-        case BOLT_WAKEUP_CLOSE:
-            bolt_free_connection(c);
-            break;
-
-        case BOLT_WAKEUP_SEND:
-            bolt_connection_begin_send(c);
-            break;
-        }
+        bolt_connection_begin_send(c);
     }
 
     free(waitq);

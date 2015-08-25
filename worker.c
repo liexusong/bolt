@@ -1,3 +1,24 @@
+/*
+ * Bolt - The Realtime Image Compress System
+ * Copyright (c) 2015 - 2016, Liexusong <280259971@qq.com>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include <stdlib.h>
 #include <wand/magick_wand.h>
 #include "bolt.h"
@@ -103,6 +124,7 @@ bolt_worker_process(void *arg)
     int                wakeup;
     bolt_connection_t *c;
     int                memory_used;
+    int                http_code = 200;
 
     for (;;) {
         wakeup = 0;
@@ -119,15 +141,25 @@ bolt_worker_process(void *arg)
 
         pthread_mutex_unlock(&service->task_lock);
 
+        /* 1) Bad Request */
         if ((work = bolt_worker_parse_task(task)) == NULL) {
+            http_code = 400;
             goto error;
         }
 
+        /* 2) Not Found */
+        if (!bolt_utils_file_exists(work->path)) {
+            http_code = 404;
+            goto error;
+        }
+
+        /* 3) Internal Server Error */
         blob = bolt_worker_compress(work.path, work.quality,
                                     work.width, work.height, &length);
         if (NULL == blob
             || NULL == (cache = malloc(sizeof(*cache))))
         {
+            http_code = 500;
             goto error;
         }
 
@@ -150,7 +182,7 @@ bolt_worker_process(void *arg)
                 c = list_entry(e, bolt_connection_t, link);
                 __sync_add_and_fetch(&cache->refcount, 1);
                 c->icache = cache;
-                c->wakeup_go = BOLT_WAKEUP_SEND;
+                c->http_code = http_code; /* HTTP code 200 */
             }
 
             jk_hash_remove(&service->waiting_htb,
@@ -195,7 +227,7 @@ error:
         if (wakeup) {
             list_for_each(e, &waitq->wait_conns) {
                 c = list_entry(e, bolt_connection_t, link);
-                c->wakeup_go = BOLT_WAKEUP_CLOSE;
+                c->http_code = http_code;
             }
 
             pthread_mutex_lock(&service->wakeup_lock);
@@ -211,7 +243,8 @@ error:
 }
 
 
-int bolt_init_workers(int num)
+int
+bolt_init_workers(int num)
 {
     int cnt;
     pid_t tid;

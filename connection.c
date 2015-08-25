@@ -1,3 +1,24 @@
+/*
+ * Bolt - The Realtime Image Compress System
+ * Copyright (c) 2015 - 2016, Liexusong <280259971@qq.com>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include <stdlib.h>
 #include "bolt.h"
 #include "connection.h"
@@ -106,6 +127,7 @@ bolt_create_connection(int sock)
     }
 
     c->sock = sock;
+    c->http_code = 200;
     c->recv_state = BOLT_HTTP_STATE_START;
     c->keepalive = 0;
     c->revset = 0;
@@ -114,6 +136,7 @@ bolt_create_connection(int sock)
     c->rpos = c->rbuf;
     c->rend = c->rbuf + BOLT_RBUF_SIZE;
     c->rlast = c->rbuf;
+    c->icache = NULL;
 
     http_parser_init(&c->hp, HTTP_REQUEST);
     c->hp.data = c;
@@ -136,6 +159,11 @@ bolt_free_connection(bolt_connection_t *c)
 
     bolt_connection_remove_revent(c);
     bolt_connection_remove_wevent(c);
+
+    if (c->icache) {
+        __sync_sub_and_fetch(&c->icache->refcount, 1);
+        c->icache = NULL;
+    }
 
     if (freeconn_count < BOLT_MAX_FREE_CONNECTIONS) {
         freeconn_list[freeconn_count++] = c;
@@ -287,13 +315,18 @@ bolt_connection_send_handler(int sock, short event, void *arg)
 again:
     if (c->wpos >= c->wend) {
 
-        if (c->send_state == BOLT_SEND_HEADER_STATE) {
+        if (c->send_state == BOLT_SEND_HEADER_STATE
+            && c->http_code == 200)
+        {
             c->wpos = (char *)c->icache->cache;
             c->wend = c->wpos + c->icache->size;
             c->send_state = BOLT_SEND_CONTENT_STATE;
 
-        } else if (c->send_state == BOLT_SEND_CONTENT_STATE) {
-            __sync_sub_and_fetch(&c->icache->refcount, 1);
+        } else {
+            if (c->send_state == BOLT_SEND_CONTENT_STATE) {
+                __sync_sub_and_fetch(&c->icache->refcount, 1);
+                c->icache = NULL;
+            }
 
             if (c->keepalive) { /* keepalive? */
                 bolt_connection_remove_wevent(c);
@@ -329,19 +362,46 @@ again:
 }
 
 
-#define BOLT_HEADER_TEMPLATE              \
-    "HTTP/1.1 200 OK\r\n"                 \
-    "Content-Type: image/jpeg\r\n"        \
-    "Server: Bolt\r\n"                    \
-    "Content-Length: %d\r\n\r\n"
-
 void
 bolt_connection_begin_send(bolt_connection_t *c)
 {
     int nsend;
 
-    nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
-                     BOLT_HEADER_TEMPLATE, c->icache->size);
+    switch (c->http_code) {
+    case 200:
+        nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
+                         "HTTP/1.1 200 OK\r\n"
+                         "Content-Type: image/jpeg\r\n"
+                         "Content-Length: %d\r\n"
+                         "Server: Bolt\r\n\r\n",
+                         c->icache->size);
+        break;
+
+    case 400:
+        nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
+                         "HTTP/1.1 400 Bad Request\r\n"
+                         "Content-Type: text/html\r\n"
+                         "Content-Length: 0\r\n"
+                         "Server: Bolt\r\n\r\n");
+        break;
+
+    case 404:
+        nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
+                         "HTTP/1.1 404 Not Found\r\n"
+                         "Content-Type: text/html\r\n"
+                         "Content-Length: 0\r\n"
+                         "Server: Bolt\r\n\r\n");
+        break;
+
+    case 500:
+    default:
+        nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
+                         "HTTP/1.1 500 Internal Server Error\r\n"
+                         "Content-Type: text/html\r\n"
+                         "Content-Length: 0\r\n"
+                         "Server: Bolt\r\n\r\n");
+        break;
+    }
 
     c->wpos = c->wbuf;
     c->wend = c->wbuf + nsend;
