@@ -90,6 +90,7 @@ agian:
         case BOLT_WAKEUP_CLOSE:
             bolt_free_connection(c);
             break;
+
         case BOLT_WAKEUP_SEND:
             bolt_connection_begin_send(c);
             break;
