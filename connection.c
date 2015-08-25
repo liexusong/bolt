@@ -107,6 +107,7 @@ bolt_create_connection(int sock)
 
     c->sock = sock;
     c->recv_state = BOLT_HTTP_STATE_START;
+    c->keepalive = 0;
     c->revset = 0;
     c->wevset = 0;
     c->parse_error = 0;
@@ -204,7 +205,7 @@ void
 bolt_connection_recv_handler(int sock, short event, void *arg)
 {
     bolt_connection_t *c = (bolt_connection_t *)arg;
-    int nbytes, would, retval, moveb;
+    int nbytes, remain, retval, moveb;
     char last;
 
     if (!c || c->sock != sock) {
@@ -220,6 +221,8 @@ again:
             bolt_free_connection(c);
             return;
         }
+
+        c->keepalive = http_should_keep_alive(&c->hp);
 
         /* Process connection request */
 
@@ -244,13 +247,13 @@ again:
         return;
     }
 
-    would = c->rend - c->rpos;
-    if (would <= 0) {
+    remain = c->rend - c->rpos;
+    if (remain <= 0) {
         bolt_free_connection(c);
         return;
     }
 
-    nbytes = read(c->sock, c->rpos, would);
+    nbytes = read(c->sock, c->rpos, remain);
     if (nbytes < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             bolt_free_connection(conn);
@@ -283,6 +286,7 @@ bolt_connection_send_handler(int sock, short event, void *arg)
 
 again:
     if (c->wpos >= c->wend) {
+
         if (c->send_state == BOLT_SEND_HEADER_STATE) {
             c->wpos = (char *)c->icache->cache;
             c->wend = c->wpos + c->icache->size;
@@ -290,8 +294,15 @@ again:
 
         } else if (c->send_state == BOLT_SEND_CONTENT_STATE) {
             __sync_sub_and_fetch(&c->icache->refcount, 1);
-            bolt_connection_remove_wevent(c); /* remove write event */
-            bolt_connection_recv_handler(c->sock, EV_READ, c);
+
+            if (c->keepalive) { /* keepalive? */
+                bolt_connection_remove_wevent(c);
+                bolt_connection_recv_handler(c->sock, EV_READ, c);
+
+            } else {
+                bolt_free_connection(c);
+            }
+
             return;
         }
     }

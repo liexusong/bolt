@@ -85,6 +85,7 @@ typedef struct {
     int sock;
     int recv_state;
     int send_state;
+    int keepalive;
     int parse_error;
     int wakeup_go;
     struct event revent;
