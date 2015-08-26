@@ -25,8 +25,18 @@
 #include "connection.h"
 #include "worker.h"
 
-bolt_setting_t _setting, *setting;
-bolt_service_t _service, *service;
+bolt_setting_t *setting, _setting = {
+    .host = "0.0.0.",
+    .port = 8080,
+    .workers = 10,
+    .logfile = NULL,
+    .daemon = 1,
+    .max_cache = BOLT_MIN_CACHE_SIZE,
+    .gc_threshold = 80,
+    .image_path = NULL,
+};
+
+bolt_service_t *service, _service;
 
 
 void
@@ -162,6 +172,8 @@ void bolt_usage()
 {
     fprintf(stderr, "\nbolt usage:\n");
     fprintf(stderr, "----------------------------------------------------\n");
+    fprintf(stderr, "\t--host <str>          The host to bind\n");
+    fprintf(stderr, "\t--port <int>          The port to listen\n");
     fprintf(stderr, "\t--workers <int>       The worker threads number\n");
     fprintf(stderr, "\t--logfile <str>       The log file\n");
     fprintf(stderr, "\t--max-cache <int>     The max cache size\n");
@@ -174,13 +186,15 @@ void bolt_usage()
 
 
 struct option long_options[] = {
+    {"host",         required_argument, 0, 'h'},
+    {"port",         required_argument, 0, 'p'},
     {"workers",      required_argument, 0, 'w'},
     {"max-cache",    required_argument, 0, 'C'},
     {"gc-threshold", required_argument, 0, 'F'},
     {"path",         required_argument, 0, 'P'},
     {"logfile",      required_argument, 0, 'L'},
     {"daemon",       no_argument,       0, 'd'},
-    {"help",         no_argument,       0, 'h'},
+    {"help",         no_argument,       0, 'H'},
     {0, 0, 0, 0},
 };
 
@@ -189,10 +203,19 @@ void bolt_parse_options(int argc, char *argv[])
 {
     int c;
 
-    while ((c = getopt_long(argc, argv, "w:L:dh",
+    while ((c = getopt_long(argc, argv, "h:p:w:C:F:L:P:dH",
         long_options, NULL)) != -1)
     {
         switch (c) {
+        case 'h':
+            setting->host = strdup(optarg);
+            break;
+        case 'p':
+            setting->port = atoi(optarg);
+            if (setting->port <= 0) {
+                setting->port = 8080;
+            }
+            break;
         case 'w':
             setting->workers = atoi(optarg);
             if (setting->workers <= 0) {
@@ -222,7 +245,7 @@ void bolt_parse_options(int argc, char *argv[])
         case 'd':
             setting->daemon = 1;
             break;
-        case 'h':
+        case 'H':
             bolt_usage();
             break;
         default:
@@ -242,6 +265,11 @@ int main(int argc, char *argv[])
     memset(serivce, 0, sizeof(*service));
 
     bolt_parse_options(argc, argv);
+
+    if (setting->image_path == NULL) {
+        fprintf(stderr, "Image source path must be set by `--path' option\n");
+        exit(1);
+    }
 
     if (bolt_init_service() == -1
         || bolt_init_connections() == -1

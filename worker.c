@@ -31,10 +31,125 @@ typedef struct {
 } bolt_compress_t;
 
 
+/**
+ * Parse task to compress work
+ * like: "ooooooooo_00x00_00.jpg"
+ */
 bolt_compress_t *
 bolt_worker_parse_task(bolt_task_t *task)
 {
-    
+    enum {
+        BOLT_PT_GET_EXT = 0,
+        BOLT_PT_GET_QUALITY,
+        BOLT_PT_GET_HEIGHT,
+        BOLT_PT_GET_WIDTH,
+        BOLT_PT_GET_FOUND,
+    } state = BOLT_PT_GET_EXT;
+
+    char *start = task->filename;
+    char *end = task->filename + task->fnlen - 1;
+    char *offset = end;
+    char *format;
+    char buffer[32];
+    int pos = 0, last;
+    char ch;
+    int width, height, quality;
+    int fnlen;
+    bolt_compress_t *work;
+
+    for (; offset >= start; offset--) {
+        ch = *offset;
+
+        switch (state) {
+        case BOLT_PT_GET_EXT:
+            if (ch == '.')
+                state = BOLT_PT_GET_QUALITY;
+            break;
+        case BOLT_PT_GET_QUALITY:
+            if (ch == '_')
+                state = BOLT_PT_GET_HEIGHT;
+            break;
+        case BOLT_PT_GET_HEIGHT:
+            if (ch == 'x')
+                state = BOLT_PT_GET_WIDTH;
+            break;
+        case BOLT_PT_GET_WIDTH:
+            if (ch == '_')
+                state = BOLT_PT_GET_FOUND;
+            break;
+        }
+
+        if (state == BOLT_PT_GET_FOUND) {
+            break;
+        }
+    }
+
+    fnlen = offset - start;
+
+    if (state != BOLT_PT_GET_FOUND || fnlen <= 0) {
+        return NULL;
+    }
+
+    pos = 0;
+    state = BOLT_PT_GET_WIDTH;
+
+    for (format = offset + 1; format <= end; format++) {
+        ch = *format;
+
+        switch (state) {
+        case BOLT_PT_GET_WIDTH:
+            if (ch == 'x') {
+                buffer[pos] = 0; pos = 0;
+                width = atoi(buffer);
+                state = BOLT_PT_GET_HEIGHT;
+                continue;
+            }
+            break;
+
+        case BOLT_PT_GET_HEIGHT:
+            if (ch == '_') {
+                buffer[pos] = 0; pos = 0;
+                height = atoi(buffer);
+                state = BOLT_PT_GET_QUALITY;
+                continue;
+            }
+            break;
+
+        case BOLT_PT_GET_QUALITY:
+            if (ch == '.') {
+                buffer[pos] = 0; pos = 0;
+                quality = atoi(buffer);
+                state = BOLT_PT_GET_EXT;
+                continue;
+            }
+            break;
+
+        case BOLT_PT_GET_EXT:
+            break;
+        }
+
+        buffer[pos++] = ch;
+    }
+
+    if (state != BOLT_PT_GET_EXT || pos <= 0) {
+        return NULL;
+    }
+
+    work = malloc(sizeof(*work));
+    if (work == NULL) {
+        return NULL;
+    }
+
+    work->width = width;
+    work->heigth = height;
+    work->quality = quality;
+
+    last = 0;      memcpy(work->path + last, start, fnlen);
+    last += fnlen; memcpy(work->path + last, ".", 1);
+    last += 1;     memcpy(work->path + last, buffer, pos);
+    last += pos;   memcpy(work->path + last, "\0", 1);
+
+    return work;
 }
 
 
