@@ -96,6 +96,8 @@ bolt_init_gc()
         || pthread_cond_init(&bolt_gc_cond, NULL) == -1
         || pthread_create(&tid, NULL, bolt_gc_process, NULL) == -1)
     {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to initialize GC context");
         return -1;
     }
 

@@ -101,6 +101,8 @@ bolt_connection_install_revent(bolt_connection_t *c,
                   EV_READ|EV_PERSIST, handler, c);
         event_base_set(service->ebase, &c->revent);
         if (event_add(&c->revent, NULL) == -1) {
+            bolt_log(BOLT_LOG_ERROR,
+                     "Failed to install read event, socket(%d)", c->sock);
             return -1;
         }
         c->revset = 1;
@@ -118,6 +120,8 @@ bolt_connection_install_wevent(bolt_connection_t *c,
                   EV_WRITE|EV_PERSIST, handler, c);
         event_base_set(service->ebase, &c->wevent);
         if (event_add(&c->wevent, NULL) == -1) {
+            bolt_log(BOLT_LOG_ERROR,
+                     "Failed to install write event, socket(%d)", c->sock);
             return -1;
         }
         c->wevset = 1;
@@ -159,6 +163,8 @@ bolt_create_connection(int sock)
     } else {
         c = malloc(sizeof(*c));
         if (c == NULL) {
+            bolt_log(BOLT_LOG_ERROR,
+                     "Not enough memory to alloc connection object");
             return NULL;
         }
     }
@@ -179,7 +185,7 @@ bolt_create_connection(int sock)
     c->hp.data = c;
 
     if (bolt_connection_install_revent(c,
-          bolt_connection_recv_handler) == -1)
+             bolt_connection_recv_handler) == -1)
     {
         bolt_free_connection(c);
         return NULL;
@@ -276,7 +282,7 @@ bolt_connection_keepalive(bolt_connection_t *c)
 
     bolt_connection_remove_wevent(c);
     bolt_connection_install_revent(c,
-        bolt_connection_recv_handler);
+                                   bolt_connection_recv_handler);
 }
 
 
@@ -293,6 +299,8 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
     remain = c->rend - c->rpos;
     if (remain <= 0) {
         bolt_free_connection(c);
+        bolt_log(BOLT_LOG_ERROR,
+                 "Connection header too big, socket(%d)", c->sock);
         return;
     }
 
@@ -300,6 +308,8 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
     if (nbytes < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             bolt_free_connection(c);
+            bolt_log(BOLT_LOG_ERROR,
+                     "Connection read error, socket(%d)", c->sock);
         }
         return;
 
@@ -316,6 +326,8 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
 
         if (c->hp.method != HTTP_GET) {
             bolt_free_connection(c);
+            bolt_log(BOLT_LOG_ERROR,
+                     "Connection request method not `GET', socket(%d)", c->sock);
             return;
         }
 
@@ -345,6 +357,8 @@ bolt_connection_send_handler(int sock, short event, void *arg)
     if (nbytes < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             bolt_free_connection(c);
+            bolt_log(BOLT_LOG_ERROR,
+                     "Connection write error, socket(%d)", c->sock);
         }
         return;
 
@@ -448,7 +462,7 @@ bolt_connection_begin_send(bolt_connection_t *c)
     c->send_state = BOLT_SEND_HEADER_STATE;
 
     bolt_connection_install_wevent(c,
-        bolt_connection_send_handler);
+                                   bolt_connection_send_handler);
 }
 
 
@@ -461,6 +475,8 @@ bolt_connection_process_request(bolt_connection_t *c)
     bolt_task_t *task;
 
     if (c->parse_error != 0) {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Header was invaild when parsed, socket(%d)", c->sock)
         return -1;
     }
 
@@ -487,6 +503,8 @@ bolt_connection_process_request(bolt_connection_t *c)
             /* Free by bolt_wakeup_handler() */
             waitq = malloc(sizeof(*waitq));
             if (NULL == waitq) {
+                bolt_log(BOLT_LOG_ERROR,
+                         "Not enough memory to alloc wait queue");
                 exit(1);
             }
 
@@ -507,6 +525,8 @@ bolt_connection_process_request(bolt_connection_t *c)
         /* Free by bolt_worker_process() */
         task = malloc(sizeof(*task));
         if (NULL == task) {
+            bolt_log(BOLT_LOG_ERROR,
+                     "Not enough memory to alloc task");
             exit(1);
         }
 

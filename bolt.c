@@ -117,11 +117,15 @@ int bolt_init_service()
         || pthread_mutex_init(&service->task_lock, NULL) == -1
         || pthread_mutex_init(&service->wakeup_lock, NULL) == -1)
     {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to initialize service's locks");
         return -1;
     }
 
     /* Init task condition */
     if (pthread_cond_init(&service->task_cond, NULL) == -1) {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to initialize task's condition");
         return -1;
     }
 
@@ -129,6 +133,8 @@ int bolt_init_service()
     if ((service->cache_htb = jk_hash_new(0, NULL, NULL)) == NULL
         || (service->waiting_htb = jk_hash_new(0, NULL, NULL)) == NULL)
     {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to create cache and waiting HashTables");
         return -1;
     }
 
@@ -140,6 +146,8 @@ int bolt_init_service()
     service->sock = bolt_listen_socket(setting->host,
                                        setting->port, 1);
     if (service->sock == -1) {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to create listen socket");
         return -1;
     }
 
@@ -147,11 +155,15 @@ int bolt_init_service()
     if (pipe(service->wakeup_notify) == -1
         || bolt_set_nonblock(service->wakeup_notify[0]) == -1)
     {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to create wakeup notify pipe");
         return -1;
     }
 
     service->ebase = event_base_new();
     if (service->ebase == NULL) {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to create event base object");
         return -1;
     }
 
@@ -160,6 +172,8 @@ int bolt_init_service()
               EV_READ|EV_PERSIST, bolt_accept_handler, NULL);
     event_base_set(service->ebase, &service->event);
     if (event_add(&service->event, NULL) == -1) {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to add accept event to libevent");
         return -1;
     }
 
@@ -168,6 +182,8 @@ int bolt_init_service()
               EV_READ|EV_PERSIST, bolt_wakeup_handler, NULL);
     event_base_set(service->ebase, &service->wakeup_event);
     if (event_add(&service->wakeup_event, NULL) == -1) {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to add wakeup event to libevent");
         return -1;
     }
 
@@ -300,7 +316,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    event_base_dispatch(service->ebase); /* Running */
+    event_base_dispatch(service->ebase); /* RUNNING */
 
     bolt_destroy_log();
 

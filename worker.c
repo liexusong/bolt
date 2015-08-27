@@ -253,7 +253,7 @@ bolt_worker_process(void *arg)
     int                wakeup;
     bolt_connection_t *c;
     int                memory_used;
-    int                http_code = 200;
+    int                http_code;
 
     for (;;) {
         wakeup = 0;
@@ -273,12 +273,16 @@ bolt_worker_process(void *arg)
         /* 1) Bad Request */
         if ((work = bolt_worker_parse_task(task)) == NULL) {
             http_code = 400;
+            bolt_log(BOLT_LOG_DEBUG,
+                     "Request file format was invaild `%s'", task->filename);
             goto error;
         }
 
         /* 2) Not Found */
         if (!bolt_utils_file_exists(work->path)) {
             http_code = 404;
+            bolt_log(BOLT_LOG_DEBUG,
+                     "Request file was not found `%s'", work->path);
             goto error;
         }
 
@@ -288,7 +292,11 @@ bolt_worker_process(void *arg)
         if (NULL == blob
             || NULL == (cache = malloc(sizeof(*cache))))
         {
+            if (blob)
+                free(blob);
             http_code = 500;
+            bolt_log(BOLT_LOG_DEBUG,
+                     "Failed to compress file `%s'", task->filename);
             goto error;
         }
 
@@ -304,6 +312,7 @@ bolt_worker_process(void *arg)
 
         jk_hash_insert(service->cache_htb,
                        task->filename, task->fnlen, (void *)cache, 0);
+
         list_add_tail(&cache->link, &service->gc_lru);
 
         if (jk_hash_find(service->waiting_htb,
@@ -315,7 +324,7 @@ bolt_worker_process(void *arg)
                 cache->refcount += 1;
 
                 c->icache = cache;
-                c->http_code = http_code; /* HTTP code 200 */
+                c->http_code = 200;
             }
 
             jk_hash_remove(service->waiting_htb,
@@ -335,7 +344,7 @@ bolt_worker_process(void *arg)
 
         memory_used = __sync_add_and_fetch(&service->total_mem_used, size);
 
-        if (memory_used > setting->max_cache) { /* need start GC? */
+        if (memory_used > setting->max_cache) { /* Need start GC? */
             bolt_gc_start();
         }
 
@@ -383,11 +392,14 @@ bolt_init_workers(int num)
     pthread_t tid;
 
     for (cnt = 0; cnt < num; cnt++) {
-        if (pthread_create(&tid, NULL, bolt_worker_process, NULL) == -1) {
+        if (pthread_create(&tid, NULL,
+                           bolt_worker_process, NULL) == -1)
+        {
+            bolt_log(BOLT_LOG_ERROR,
+                     "Failed to create worker thread");
             return -1;
         }
     }
 
     return 0;
 }
-
