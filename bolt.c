@@ -27,6 +27,7 @@
 #include "net.h"
 #include "connection.h"
 #include "worker.h"
+#include "utils.h"
 
 bolt_setting_t *setting, _setting = {
     .host = "0.0.0.0",
@@ -269,8 +270,10 @@ int main(int argc, char *argv[])
 
     bolt_parse_options(argc, argv);
 
-    if (setting->image_path == NULL) {
-        fprintf(stderr, "Image source path must be set by `--path' option\n");
+    if (setting->image_path == NULL
+        || !bolt_utils_file_exists(setting->image_path))
+    {
+        fprintf(stderr, "Fatal: Image source path must be set by `--path' option\n\n");
         exit(1);
     }
 
