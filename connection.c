@@ -264,17 +264,49 @@ bolt_connection_recv_completed(bolt_connection_t *c)
 
 
 void
+bolt_connection_keepalive(bolt_connection_t *c)
+{
+    c->rlast = c->rbuf;
+    c->rpos = c->rbuf;
+    c->recv_state = BOLT_HTTP_STATE_START;
+    c->http_code = 200;
+
+    bolt_connection_remove_wevent(c);
+    bolt_connection_install_revent(c,
+        bolt_connection_recv_handler);
+}
+
+
+void
 bolt_connection_recv_handler(int sock, short event, void *arg)
 {
     bolt_connection_t *c = (bolt_connection_t *)arg;
-    int nbytes, remain, retval, moveb;
-    char last;
+    int nbytes, remain, retval;
 
     if (!c || c->sock != sock) {
         return;
     }
 
-again:
+    remain = c->rend - c->rpos;
+    if (remain <= 0) {
+        bolt_free_connection(c);
+        return;
+    }
+
+    nbytes = read(c->sock, c->rpos, remain);
+    if (nbytes < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            bolt_free_connection(c);
+        }
+        return;
+
+    } else if (nbytes == 0) {
+        bolt_free_connection(c);
+        return;
+    }
+
+    c->rpos += nbytes;
+
     if (bolt_connection_recv_completed(c) == 0) {
         retval = http_parser_execute(&c->hp, &http_parser_callbacks,
                                      c->rbuf, c->rlast - c->rbuf);
@@ -287,55 +319,10 @@ again:
         c->keepalive = http_should_keep_alive(&c->hp);
 
         /* Process connection request */
-
-        if (bolt_connection_process_request(c) == 0) {
-            moveb = c->rpos - c->rlast;
-
-            if (moveb > 0) {
-                memmove(c->rbuf, c->rlast, moveb);
-                c->rlast = c->rbuf;
-                c->rpos = c->rbuf + moveb;
-
-            } else {
-                c->rlast = c->rpos = c->rbuf;
-            }
-
-            c->recv_state = BOLT_HTTP_STATE_START; /* reset state */
-
-        } else {
+        if (bolt_connection_process_request(c) == -1) {
             bolt_free_connection(c);
         }
-
-        return;
     }
-
-    remain = c->rend - c->rpos;
-    if (remain <= 0) {
-        bolt_free_connection(c);
-        return;
-    }
-
-    nbytes = read(c->sock, c->rpos, remain);
-    if (nbytes < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            if (bolt_connection_install_revent(c,
-                   bolt_connection_recv_handler) == 0)
-            {
-                return;
-            }
-        }
-
-        bolt_free_connection(c);
-        return;
-
-    } else if (nbytes == 0) {
-        bolt_free_connection(c);
-        return;
-    }
-
-    c->rpos += nbytes;
-
-    goto again;
 }
 
 
@@ -349,7 +336,22 @@ bolt_connection_send_handler(int sock, short event, void *arg)
         return;
     }
 
-again:
+    nsend = c->wend - c->wpos;
+
+    nbytes = write(c->sock, c->wpos, nsend);
+    if (nbytes < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            bolt_free_connection(c);
+        }
+        return;
+
+    } else if (nbytes == 0) {
+        bolt_free_connection(c);
+        return;
+    }
+
+    c->wpos += nbytes;
+
     if (c->wpos >= c->wend) {
 
         if (c->send_state == BOLT_SEND_HEADER_STATE) {
@@ -384,41 +386,13 @@ again:
                 c->icache = NULL;
             }
 
-            if (c->keepalive) { /* keepalive? */
-                bolt_connection_remove_wevent(c);
-                bolt_connection_recv_handler(c->sock, EV_READ, c);
-
+            if (c->keepalive && c->http_code == 200) { /* keepalive? */
+                bolt_connection_keepalive(c);
             } else {
                 bolt_free_connection(c);
             }
-
-            return;
         }
     }
-
-    nsend = c->wend - c->wpos;
-
-    nbytes = write(c->sock, c->wpos, nsend);
-    if (nbytes < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            if (bolt_connection_install_wevent(c,
-                   bolt_connection_send_handler) == 0)
-            {
-                return;
-            }
-        }
-
-        bolt_free_connection(c);
-        return;
-
-    } else if (nbytes == 0) {
-        bolt_free_connection(c);
-        return;
-    }
-
-    c->wpos += nbytes;
-
-    goto again;
 }
 
 
@@ -470,7 +444,8 @@ bolt_connection_begin_send(bolt_connection_t *c)
     c->wend = c->wbuf + nsend;
     c->send_state = BOLT_SEND_HEADER_STATE;
 
-    bolt_connection_send_handler(c->sock, EV_WRITE, c);
+    bolt_connection_install_wevent(c,
+        bolt_connection_send_handler);
 }
 
 

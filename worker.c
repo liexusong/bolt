@@ -59,6 +59,8 @@ bolt_worker_parse_task(bolt_task_t *task)
     int width, height, quality;
     int fnlen;
     bolt_compress_t *work;
+    char *path;
+    int plen;
 
     for (; offset >= start; offset--) {
         ch = *offset;
@@ -134,7 +136,12 @@ bolt_worker_parse_task(bolt_task_t *task)
         buffer[pos++] = ch;
     }
 
-    if (state != BOLT_PT_GET_EXT || pos <= 0) {
+    if (state != BOLT_PT_GET_EXT
+        || pos <= 0
+        || width == 0
+        || height == 0
+        || quality == 0)
+    {
         return NULL;
     }
 
@@ -147,7 +154,11 @@ bolt_worker_parse_task(bolt_task_t *task)
     work->height = height;
     work->quality = quality;
 
-    last = 0;       memcpy(work->path + last, start, fnlen);
+    path = setting->image_path;
+    plen = setting->path_len;
+
+    last = 0;       memcpy(work->path + last, path, plen);
+    last += plen;   memcpy(work->path + last, start, fnlen);
     last += fnlen;  memcpy(work->path + last, ".", 1);
     last += 1;      memcpy(work->path + last, buffer, pos);
     last += pos;    memcpy(work->path + last, "\0", 1);
@@ -319,7 +330,7 @@ bolt_worker_process(void *arg)
             list_add(&waitq->link, &service->wakeup_queue);
             pthread_mutex_unlock(&service->wakeup_lock);
 
-            write(&service->wakeup_notify[1], "\0", 1);
+            write(service->wakeup_notify[1], "\0", 1);
         }
 
         memory_used = __sync_add_and_fetch(&service->total_mem_used, size);
@@ -356,7 +367,7 @@ error:
             list_add(&waitq->link, &service->wakeup_queue);
             pthread_mutex_unlock(&service->wakeup_lock);
 
-            write(&service->wakeup_notify[1], "\0", 1);
+            write(service->wakeup_notify[1], "\0", 1);
         }
 
         if (task) free(task);

@@ -250,6 +250,10 @@ void bolt_parse_options(int argc, char *argv[])
             break;
         case 'P':
             setting->image_path = strdup(optarg);
+            setting->path_len = strlen(setting->image_path);
+            if (setting->path_len <= 0) {
+                setting->image_path = NULL;
+            }
             break;
         case 'd':
             setting->daemon = 1;
