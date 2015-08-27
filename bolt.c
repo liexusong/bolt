@@ -273,7 +273,8 @@ int main(int argc, char *argv[])
 
     if (bolt_init_service() == -1
         || bolt_init_connections() == -1
-        || bolt_init_workers() == -1)
+        || bolt_init_workers() == -1
+        || bolt_init_gc() == -1)
     {
         exit(1);
     }
