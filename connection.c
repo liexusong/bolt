@@ -485,7 +485,7 @@ bolt_connection_process_request(bolt_connection_t *c)
     pthread_mutex_lock(&service->cache_lock);
 
     if (jk_hash_find(service->cache_htb, c->filename,
-          c->fnlen, (void **)&cache) == JK_HASH_OK)
+                     c->fnlen, (void **)&cache) == JK_HASH_OK)
     {
         cache->refcount += 1;
 
@@ -498,9 +498,10 @@ bolt_connection_process_request(bolt_connection_t *c)
 
     } else {
         if (jk_hash_find(service->waiting_htb, c->filename,
-              c->fnlen, (void **)&waitq) == JK_HASH_ERR)
+                         c->fnlen, (void **)&waitq) == JK_HASH_ERR)
         {
             /* Free by bolt_wakeup_handler() */
+
             waitq = malloc(sizeof(*waitq));
             if (NULL == waitq) {
                 bolt_log(BOLT_LOG_ERROR,
@@ -523,6 +524,7 @@ bolt_connection_process_request(bolt_connection_t *c)
 
     if (action) {
         /* Free by bolt_worker_process() */
+
         task = malloc(sizeof(*task));
         if (NULL == task) {
             bolt_log(BOLT_LOG_ERROR,
