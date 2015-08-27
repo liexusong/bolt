@@ -1,7 +1,6 @@
 #ifndef __BOLT_H
 #define __BOLT_H
 
-
 #include <pthread.h>
 #include <event.h>
 #include "http_parser.h"

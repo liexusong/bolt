@@ -60,8 +60,7 @@ char bolt_error_400_page[] =
 "<center><h1>400 Bad Request</h1></center>"
 "<hr><div align=\"center\">Bolt " BOLT_VERSION "</div>"
 "</body>"
-"</html>"
-;
+"</html>";
 
 char bolt_error_404_page[] =
 "<html>"
@@ -70,8 +69,7 @@ char bolt_error_404_page[] =
 "<center><h1>404 Not Found</h1></center>"
 "<hr><div align=\"center\">Bolt " BOLT_VERSION "</div>"
 "</body>"
-"</html>"
-;
+"</html>";
 
 char bolt_error_500_page[] =
 "<html>"
@@ -80,8 +78,7 @@ char bolt_error_500_page[] =
 "<center><h1>500 Internal Server Error</h1></center>"
 "<hr><div align=\"center\">Bolt " BOLT_VERSION "</div>"
 "</body>"
-"</html>"
-;
+"</html>";
 
 
 int
