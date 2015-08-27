@@ -300,7 +300,9 @@ bolt_worker_process(void *arg)
         {
             list_for_each(e, &waitq->wait_conns) {
                 c = list_entry(e, bolt_connection_t, link);
+
                 __sync_add_and_fetch(&cache->refcount, 1);
+
                 c->icache = cache;
                 c->http_code = http_code; /* HTTP code 200 */
             }
