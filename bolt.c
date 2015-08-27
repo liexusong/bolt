@@ -26,7 +26,7 @@
 #include "worker.h"
 
 bolt_setting_t *setting, _setting = {
-    .host = "0.0.0.",
+    .host = "0.0.0.0",
     .port = 8080,
     .workers = 10,
     .logfile = NULL,

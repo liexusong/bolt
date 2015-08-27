@@ -462,7 +462,7 @@ bolt_connection_process_request(bolt_connection_t *c)
     {
         __sync_add_and_fetch(&cache->refcount, 1);
 
-        /* move cache to LRU tail */
+        /* Move cache to LRU tail */
         list_del(&cache->link);
         list_add_tail(&cache->link, &service->gc_lru);
 
@@ -473,8 +473,9 @@ bolt_connection_process_request(bolt_connection_t *c)
         if (jk_hash_find(service->waiting_htb, c->filename,
               c->filename_len, &waitq) == JK_HASH_ERR)
         {
+            /* Alloc wait queue from heap and free by bolt_wakeup_handler() */
             waitq = malloc(sizeof(*waitq));
-            if (NULL == waitq) { /* out of memory */
+            if (NULL == waitq) {
                 exit(1);
             }
 
@@ -492,6 +493,7 @@ bolt_connection_process_request(bolt_connection_t *c)
     /* 2) Do task? */
 
     if (action) {
+        /* Alloc task from heap and free by bolt_worker_process() */
         task = malloc(sizeof(*task));
         if (NULL == task) {
             exit(1);
@@ -501,15 +503,15 @@ bolt_connection_process_request(bolt_connection_t *c)
         task->fnlen = c->fnlen;
 
         pthread_mutex_lock(&service->task_lock);
-        list_add(&task->link, &service->task_queue); /* add to tasks queue */
-        pthread_cond_signal(&service->task_cond, &service->task_lock);
+        list_add(&task->link, &service->task_queue); /* Add to tasks queue */
+        pthread_cond_signal(&service->task_cond);
         pthread_mutex_unlock(&service->task_lock);
 
     } else {
         bolt_connection_begin_send(c);
     }
 
-    bolt_connection_remove_revent(c); /* remove read event */
+    bolt_connection_remove_revent(c); /* Remove read event */
 
     return 0;
 }
