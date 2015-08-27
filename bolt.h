@@ -29,6 +29,8 @@
 #define  BOLT_SEND_HEADER_STATE    1
 #define  BOLT_SEND_CONTENT_STATE   2
 
+#define  BOLT_VERSION  "V0.1"
+
 
 typedef struct {
     char *host;
