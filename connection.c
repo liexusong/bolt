@@ -468,16 +468,13 @@ bolt_connection_process_request(bolt_connection_t *c)
 {
     bolt_cache_t *cache;
     bolt_wait_queue_t *waitq;
-    int action = 1;
-    bolt_task_t *task;
+    int dopass = 1;
 
     if (c->parse_error != 0) {
         bolt_log(BOLT_LOG_ERROR,
                  "Header was invaild when parsed, socket(%d)", c->sock)
         return -1;
     }
-
-    /* 1) Get cache? */
 
     pthread_mutex_lock(&service->cache_lock);
 
@@ -491,7 +488,7 @@ bolt_connection_process_request(bolt_connection_t *c)
         list_add_tail(&cache->link, &service->gc_lru);
 
         c->icache = cache;
-        action = 0;
+        dopass = 0;
 
     } else {
         if (jk_hash_find(service->waiting_htb, c->filename,
@@ -499,11 +496,12 @@ bolt_connection_process_request(bolt_connection_t *c)
         {
             /* Free by bolt_wakeup_handler() */
 
-            waitq = (bolt_wait_queue_t *)malloc(sizeof(*waitq));
+            waitq = malloc(sizeof(*waitq));
             if (NULL == waitq) {
+                pthread_mutex_unlock(&service->cache_lock);
                 bolt_log(BOLT_LOG_ERROR,
                          "Not enough memory to alloc wait queue");
-                exit(1);
+                return -1;
             }
 
             INIT_LIST_HEAD(&waitq->wait_conns);
@@ -517,26 +515,8 @@ bolt_connection_process_request(bolt_connection_t *c)
 
     pthread_mutex_unlock(&service->cache_lock);
 
-    /* 2) Do task? */
-
-    if (action) {
-        /* Free by bolt_worker_process() */
-
-        task = (bolt_task_t *)malloc(sizeof(*task));
-        if (NULL == task) {
-            bolt_log(BOLT_LOG_ERROR,
-                     "Not enough memory to alloc task");
-            exit(1);
-        }
-
-        memcpy(task->filename, c->filename, c->fnlen);
-        task->fnlen = c->fnlen;
-
-        pthread_mutex_lock(&service->task_lock);
-        list_add(&task->link, &service->task_queue);
-        pthread_cond_signal(&service->task_cond);
-        pthread_mutex_unlock(&service->task_lock);
-
+    if (dopass && bolt_worker_pass_task(c) == -1) {
+        return -1;
     } else {
         bolt_connection_begin_send(c);
     }

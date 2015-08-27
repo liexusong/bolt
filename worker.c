@@ -275,7 +275,7 @@ bolt_worker_process(void *arg)
             http_code = 400;
             bolt_log(BOLT_LOG_DEBUG,
                      "Request file format was invaild `%s'", task->filename);
-            goto error;
+            goto fatal;
         }
 
         /* 2) Not Found */
@@ -283,7 +283,7 @@ bolt_worker_process(void *arg)
             http_code = 404;
             bolt_log(BOLT_LOG_DEBUG,
                      "Request file was not found `%s'", work->path);
-            goto error;
+            goto fatal;
         }
 
         /* 3) Internal Server Error */
@@ -297,7 +297,7 @@ bolt_worker_process(void *arg)
             http_code = 500;
             bolt_log(BOLT_LOG_DEBUG,
                      "Failed to compress file `%s'", task->filename);
-            goto error;
+            goto fatal;
         }
 
         cache->size = size;
@@ -306,7 +306,7 @@ bolt_worker_process(void *arg)
         cache->fnlen = task->fnlen;
         memcpy(cache->filename, task->filename, cache->fnlen);
 
-        /* add to cache table and wakeup waiting connections */
+        /* Add to cache table and wakeup waiting connections */
 
         pthread_mutex_lock(&service->cache_lock);
 
@@ -353,7 +353,7 @@ bolt_worker_process(void *arg)
 
         continue;
 
-error:
+fatal:
         pthread_mutex_lock(&service->cache_lock);
 
         if (jk_hash_find(service->waiting_htb,
@@ -382,6 +382,30 @@ error:
         if (task) free(task);
         if (work) free(work);
     }
+}
+
+
+int
+bolt_worker_pass_task(bolt_connection_t *c)
+{
+    bolt_task_t *task;
+
+    task = malloc(sizeof(*task));
+    if (NULL == task) {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Not enough memory to alloc task");
+        return -1;
+    }
+
+    task->fnlen = c->fnlen;
+    memcpy(task->filename, c->filename, c->fnlen);
+
+    pthread_mutex_lock(&service->task_lock);
+    list_add(&task->link, &service->task_queue);
+    pthread_cond_signal(&service->task_cond);
+    pthread_mutex_unlock(&service->task_lock);
+
+    return 0;
 }
 
 
