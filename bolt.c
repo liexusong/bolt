@@ -58,10 +58,14 @@ bolt_accept_handler(int sock, short event, void *arg)
 
         if (bolt_set_nonblock(nsock) == -1) {
             close(nsock);
+            bolt_log(BOLT_LOG_ERROR,
+                     "Failed to set socket(%d) to nonblocking", nsock);
             return;
         }
 
         if (bolt_create_connection(nsock) == NULL) {
+            bolt_log(BOLT_LOG_ERROR,
+                     "Failed to create connection object, socket(%d)", nsock);
         }
     }
 }
@@ -283,7 +287,12 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    if (bolt_init_service() == -1
+    if (setting->daemon) {
+        bolt_daemonize();
+    }
+
+    if (bolt_init_log(setting->logfile, BOLT_LOG_DEBUG) == -1
+        || bolt_init_service() == -1
         || bolt_init_connections() == -1
         || bolt_init_workers(setting->workers) == -1
         || bolt_init_gc() == -1)
@@ -292,6 +301,8 @@ int main(int argc, char *argv[])
     }
 
     event_base_dispatch(service->ebase); /* Running */
+
+    bolt_destroy_log();
 
     exit(0);
 }

@@ -7,6 +7,7 @@
 #include "http_parser.h"
 #include "hash.h"
 #include "list.h"
+#include "log.h"
 
 #define  BOLT_MIN_CACHE_SIZE   (1024 * 1024 * 10)    /* 10MB */
 #define  BOLT_FILENAME_LENGTH  1024

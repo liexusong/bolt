@@ -2,5 +2,6 @@
 #define __BOLT_UTILS_H
 
 int bolt_utils_file_exists(char *path);
+void bolt_daemonize();
 
 #endif
