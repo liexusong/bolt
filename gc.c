@@ -54,6 +54,9 @@ bolt_gc_process(void *arg)
         freesize = service->total_mem_used - 
                    (setting->max_cache * setting->gc_threshold / 100);
 
+        bolt_log(BOLT_LOG_DEBUG,
+                 "GC starting and would be free %d bytes memory", freesize);
+
         /* GC begin (Would be lock cache hashtable) */
 
         pthread_mutex_lock(&service->cache_lock);
