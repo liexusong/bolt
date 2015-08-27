@@ -166,7 +166,7 @@ int bolt_init_service()
     }
 
     service->connections = 0;
-    service->memused = 0;
+    service->total_mem_used = 0;
 
     return 0;
 }

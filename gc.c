@@ -45,13 +45,13 @@ bolt_gc_process(void *arg)
     for (;;) {
         pthread_mutex_lock(&bolt_gc_lock);
 
-        while (service->memused < setting->max_cache) {
+        while (service->total_mem_used < setting->max_cache) {
             pthread_cond_wait(&bolt_gc_cond, &bolt_gc_lock);
         }
 
         pthread_mutex_unlock(&bolt_gc_lock);
 
-        freesize = service->memused - 
+        freesize = service->total_mem_used - 
                    (setting->max_cache * setting->gc_threshold / 100);
 
         /* GC begin (Would be lock cache hashtable) */
@@ -71,8 +71,7 @@ bolt_gc_process(void *arg)
             jk_hash_remove(service->cache_htb,
                            cache->filename, cache->fnlen);
 
-            __sync_sub_and_fetch(&service->memused, cache->size);
-
+            service->total_mem_used -= cache->size;
             freesize -= cache->size;
 
             free(cache->cache);

@@ -195,7 +195,7 @@ bolt_free_connection(bolt_connection_t *c)
     bolt_connection_remove_wevent(c);
 
     if (c->icache) {
-        __sync_sub_and_fetch(&c->icache->refcount, 1);
+        c->icache->refcount -= 1;
         c->icache = NULL;
     }
 
@@ -380,7 +380,7 @@ again:
 
         } else {
             if (c->http_code == 200) {
-                __sync_sub_and_fetch(&c->icache->refcount, 1);
+                c->icache->refcount -= 1;
                 c->icache = NULL;
             }
 
@@ -493,7 +493,7 @@ bolt_connection_process_request(bolt_connection_t *c)
     if (jk_hash_find(service->cache_htb, c->filename,
           c->fnlen, (void **)&cache) == JK_HASH_OK)
     {
-        __sync_add_and_fetch(&cache->refcount, 1);
+        cache->refcount += 1;
 
         /* Move cache to LRU tail */
         list_del(&cache->link);

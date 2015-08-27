@@ -66,7 +66,7 @@ typedef struct {
     struct event wakeup_event;
 
     int connections;
-    int memused;
+    int total_mem_used;
 } bolt_service_t;
 
 

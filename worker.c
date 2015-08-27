@@ -301,7 +301,7 @@ bolt_worker_process(void *arg)
             list_for_each(e, &waitq->wait_conns) {
                 c = list_entry(e, bolt_connection_t, link);
 
-                __sync_add_and_fetch(&cache->refcount, 1);
+                cache->refcount += 1;
 
                 c->icache = cache;
                 c->http_code = http_code; /* HTTP code 200 */
@@ -322,7 +322,7 @@ bolt_worker_process(void *arg)
             write(&service->wakeup_notify[1], "\0", 1);
         }
 
-        memory_used = __sync_add_and_fetch(&service->memused, size);
+        memory_used = __sync_add_and_fetch(&service->total_mem_used, size);
 
         if (memory_used > setting->max_cache) { /* need start GC? */
             bolt_gc_start();
