@@ -273,7 +273,8 @@ int main(int argc, char *argv[])
     if (setting->image_path == NULL
         || !bolt_utils_file_exists(setting->image_path))
     {
-        fprintf(stderr, "Fatal: Image source path must be set by `--path' option\n\n");
+        fprintf(stderr, "Fatal: Image source path must be set by `--path' option "
+                        "and the path must be exists\n\n");
         exit(1);
     }
 
