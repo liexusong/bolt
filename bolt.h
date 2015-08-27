@@ -40,7 +40,7 @@ typedef struct {
     int daemon;
     int max_cache;     /* The max cache size */
     int gc_threshold;  /* The range 1 ~ 100 */
-    char *image_path;
+    char *path;
     int path_len;
 } bolt_setting_t;
 

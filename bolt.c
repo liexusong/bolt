@@ -37,7 +37,8 @@ bolt_setting_t *setting, _setting = {
     .daemon = 1,
     .max_cache = BOLT_MIN_CACHE_SIZE,
     .gc_threshold = 80,
-    .image_path = NULL,
+    .path = NULL,
+    .path_len = 0,
 };
 
 bolt_service_t *service, _service;
@@ -49,21 +50,20 @@ bolt_accept_handler(int sock, short event, void *arg)
     struct sockaddr_in addr;
     int nsock, size;
 
-again:
-    nsock = accept(sock, (struct sockaddr*)&addr, &size);
-    if (nsock == -1) {
-        return;
-    }
+    for (;;) {
+        nsock = accept(sock, (struct sockaddr*)&addr, &size);
+        if (nsock == -1) {
+            return;
+        }
 
-    if (bolt_set_nonblock(nsock) == -1) {
-        close(nsock);
-        return;
-    }
+        if (bolt_set_nonblock(nsock) == -1) {
+            close(nsock);
+            return;
+        }
 
-    if (bolt_create_connection(nsock) == NULL) {
+        if (bolt_create_connection(nsock) == NULL) {
+        }
     }
-
-    goto again;
 }
 
 
@@ -79,33 +79,30 @@ bolt_wakeup_handler(int sock, short event, void *arg)
         return;
     }
 
-agian:
-    if (read(sock, (char *)&byte, 1) != 1) {
-        return;
+    for (;;) {
+        if (read(sock, (char *)&byte, 1) != 1) {
+            return;
+        }
+
+        pthread_mutex_lock(&service->wakeup_lock);
+
+        e = service->wakeup_queue.next;
+        if (e != &service->wakeup_queue) {
+            waitq = list_entry(e, bolt_wait_queue_t, link);
+            list_del(e);
+        }
+
+        pthread_mutex_unlock(&service->wakeup_lock);
+
+        if (waitq) {
+            list_for_each(e, &waitq->wait_conns) {
+                c = list_entry(e, bolt_connection_t, link);
+                bolt_connection_begin_send(c);
+            }
+
+            free(waitq);
+        }
     }
-
-    pthread_mutex_lock(&service->wakeup_lock);
-
-    e = service->wakeup_queue.next;
-    if (e != &service->wakeup_queue) {
-        waitq = list_entry(e, bolt_wait_queue_t, link);
-        list_del(e);
-    }
-
-    pthread_mutex_unlock(&service->wakeup_lock);
-
-    if (!waitq) {
-        goto agian;
-    }
-
-    list_for_each(e, &waitq->wait_conns) {
-        c = list_entry(e, bolt_connection_t, link);
-        bolt_connection_begin_send(c);
-    }
-
-    free(waitq);
-
-    goto agian;
 }
 
 
@@ -249,10 +246,10 @@ void bolt_parse_options(int argc, char *argv[])
             setting->logfile = strdup(optarg);
             break;
         case 'P':
-            setting->image_path = strdup(optarg);
-            setting->path_len = strlen(setting->image_path);
+            setting->path = strdup(optarg);
+            setting->path_len = strlen(setting->path);
             if (setting->path_len <= 0) {
-                setting->image_path = NULL;
+                setting->path = NULL;
             }
             break;
         case 'd':
@@ -278,8 +275,8 @@ int main(int argc, char *argv[])
 
     bolt_parse_options(argc, argv);
 
-    if (setting->image_path == NULL
-        || !bolt_utils_file_exists(setting->image_path))
+    if (setting->path == NULL
+        || !bolt_utils_file_exists(setting->path))
     {
         fprintf(stderr, "Fatal: Image source path must be set by `--path' option "
                         "and the path must be exists\n\n");

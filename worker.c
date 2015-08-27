@@ -154,7 +154,7 @@ bolt_worker_parse_task(bolt_task_t *task)
     work->height = height;
     work->quality = quality;
 
-    path = setting->image_path;
+    path = setting->path;
     plen = setting->path_len;
 
     last = 0;       memcpy(work->path + last, path, plen);
