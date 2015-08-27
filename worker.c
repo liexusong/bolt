@@ -20,8 +20,10 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <wand/magick_wand.h>
 #include "bolt.h"
+
 
 typedef struct {
     int width;
@@ -141,13 +143,13 @@ bolt_worker_parse_task(bolt_task_t *task)
     }
 
     work->width = width;
-    work->heigth = height;
+    work->height = height;
     work->quality = quality;
 
-    last = 0;      memcpy(work->path + last, start, fnlen);
-    last += fnlen; memcpy(work->path + last, ".", 1);
-    last += 1;     memcpy(work->path + last, buffer, pos);
-    last += pos;   memcpy(work->path + last, "\0", 1);
+    last = 0;       memcpy(work->path + last, start, fnlen);
+    last += fnlen;  memcpy(work->path + last, ".", 1);
+    last += 1;      memcpy(work->path + last, buffer, pos);
+    last += pos;    memcpy(work->path + last, "\0", 1);
 
     return work;
 }
