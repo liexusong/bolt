@@ -149,6 +149,11 @@ int bolt_init_service()
         return -1;
     }
 
+    service->ebase = event_base_new();
+    if (service->ebase == NULL) {
+        return -1;
+    }
+
     /* Add listen socket to libevent */
     event_set(&service->event, service->sock,
               EV_READ|EV_PERSIST, bolt_accept_handler, NULL);
@@ -265,7 +270,6 @@ int main(int argc, char *argv[])
     setting = &_setting;
     service = &_service;
 
-    memset(setting, 0, sizeof(*setting));
     memset(service, 0, sizeof(*service));
 
     bolt_parse_options(argc, argv);
