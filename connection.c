@@ -499,7 +499,7 @@ bolt_connection_process_request(bolt_connection_t *c)
         {
             /* Free by bolt_wakeup_handler() */
 
-            waitq = malloc(sizeof(*waitq));
+            waitq = (bolt_wait_queue_t *)malloc(sizeof(*waitq));
             if (NULL == waitq) {
                 bolt_log(BOLT_LOG_ERROR,
                          "Not enough memory to alloc wait queue");
@@ -522,7 +522,7 @@ bolt_connection_process_request(bolt_connection_t *c)
     if (action) {
         /* Free by bolt_worker_process() */
 
-        task = malloc(sizeof(*task));
+        task = (bolt_task_t *)malloc(sizeof(*task));
         if (NULL == task) {
             bolt_log(BOLT_LOG_ERROR,
                      "Not enough memory to alloc task");
