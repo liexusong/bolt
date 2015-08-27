@@ -23,6 +23,7 @@
 #include <string.h>
 #include <wand/magick_wand.h>
 #include "bolt.h"
+#include "utils.h"
 
 
 typedef struct {
@@ -235,7 +236,7 @@ bolt_worker_process(void *arg)
     bolt_compress_t   *work = NULL;
     struct list_head  *e;
     char              *blob;
-    int                length;
+    int                size;
     bolt_cache_t      *cache;
     struct list_head  *waitq;
     int                wakeup;
@@ -272,7 +273,7 @@ bolt_worker_process(void *arg)
 
         /* 3) Internal Server Error */
         blob = bolt_worker_compress(work.path, work.quality,
-                                    work.width, work.height, &length);
+                                    work.width, work.height, &size);
         if (NULL == blob
             || NULL == (cache = malloc(sizeof(*cache))))
         {
@@ -280,9 +281,11 @@ bolt_worker_process(void *arg)
             goto error;
         }
 
-        cache->size = length;
+        cache->size = size;
         cache->cache = blob;
         cache->refcount = 0;
+        cache->fnlen = task->fnlen;
+        memcpy(cache->filename, task->filename, cache->fnlen);
 
         /* add to cache table and wakeup waiting connections */
 
@@ -317,7 +320,7 @@ bolt_worker_process(void *arg)
             write(&service->wakeup_notify[1], "\0", 1);
         }
 
-        memory_used = __sync_add_and_fetch(&service->memused, length);
+        memory_used = __sync_add_and_fetch(&service->memused, size);
 
         if (memory_used > setting->max_cache) { /* need start GC? */
             bolt_gc_start();
