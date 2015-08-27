@@ -25,7 +25,7 @@ bolt_gc_process(void *arg)
         pthread_mutex_lock(&bolt_gc_lock);
 
         while (service->memused < setting->max_cache) {
-            pthread_cond_wait(&bolt_gc_cond, &bolt_gc_lock);
+            phtread_cond_wait(&bolt_gc_cond, &bolt_gc_lock);
         }
 
         pthread_mutex_unlock(&bolt_gc_lock);
