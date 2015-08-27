@@ -484,7 +484,7 @@ bolt_connection_process_request(bolt_connection_t *c)
         if (jk_hash_find(service->waiting_htb, c->filename,
               c->fnlen, (void **)&waitq) == JK_HASH_ERR)
         {
-            /* Alloc wait queue from heap and free by bolt_wakeup_handler() */
+            /* Free by bolt_wakeup_handler() */
             waitq = malloc(sizeof(*waitq));
             if (NULL == waitq) {
                 exit(1);
@@ -504,7 +504,7 @@ bolt_connection_process_request(bolt_connection_t *c)
     /* 2) Do task? */
 
     if (action) {
-        /* Alloc task from heap and free by bolt_worker_process() */
+        /* Free by bolt_worker_process() */
         task = malloc(sizeof(*task));
         if (NULL == task) {
             exit(1);
@@ -514,7 +514,7 @@ bolt_connection_process_request(bolt_connection_t *c)
         task->fnlen = c->fnlen;
 
         pthread_mutex_lock(&service->task_lock);
-        list_add(&task->link, &service->task_queue); /* Add to tasks queue */
+        list_add(&task->link, &service->task_queue);
         pthread_cond_signal(&service->task_cond);
         pthread_mutex_unlock(&service->task_lock);
 
