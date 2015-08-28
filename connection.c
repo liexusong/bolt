@@ -538,13 +538,28 @@ bolt_connection_http_parse_url(struct http_parser *p,
     const char *at, size_t len)
 {
     bolt_connection_t *c = p->data;
+    char *start, *end;
 
     if (len > BOLT_FILENAME_LENGTH) {
         c->parse_error = 1;
         return -1;
     }
 
-    memcpy(c->filename, at, len); c->fnlen = len;
+    start = at;
+    end = at + len;
+    
+    while (start < end && *start == '/') start++;
+
+    len = end - start;
+    if (len == 0) {
+        c->parse_error = 1;
+        return -1;
+    }
+
+    memcpy(c->filename, "/", 1);
+    memcpy(c->filename + 1, start, len);
+
+    c->fnlen = len;
 
     return 0;
 }
