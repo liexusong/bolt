@@ -50,8 +50,7 @@ int bolt_listen_socket(char *addr, short port, int nonblock)
 
     si.sin_family = AF_INET;
     si.sin_port = htons(port);
-    si.sin_addr.s_addr = htonl(INADDR_ANY);
-    //si.sin_addr.s_addr = htonl(inet_addr(addr));
+    si.sin_addr.s_addr = htonl(inet_addr(addr));
 
     if (bind(sock, (struct sockaddr *)&si, sizeof(si)) == -1) {
         goto err;
