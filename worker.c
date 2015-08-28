@@ -25,7 +25,6 @@
 #include "bolt.h"
 #include "utils.h"
 
-
 typedef struct {
     int width;
     int height;

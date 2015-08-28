@@ -34,6 +34,7 @@ bolt_setting_t *setting, _setting = {
     .port = 8080,
     .workers = 10,
     .logfile = NULL,
+    .logmark = BOLT_LOG_ERROR,
     .daemon = 0,
     .max_cache = BOLT_MIN_CACHE_SIZE,
     .gc_threshold = 80,
@@ -202,6 +203,7 @@ void bolt_usage()
     fprintf(stderr, "\t--port <int>          The port to listen\n");
     fprintf(stderr, "\t--workers <int>       The worker threads number\n");
     fprintf(stderr, "\t--logfile <str>       The log file\n");
+    fprintf(stderr, "\t--logmark <str>       Which level log would be mark (DEBUG|NOTICE|ALERT|ERROR)\n");
     fprintf(stderr, "\t--max-cache <int>     The max cache size\n");
     fprintf(stderr, "\t--gc-threshold <int>  The GC threshold (range 1 ~ 100)\n");
     fprintf(stderr, "\t--path <str>          The image source path\n");
@@ -219,6 +221,7 @@ struct option long_options[] = {
     {"gc-threshold", required_argument, 0, 'F'},
     {"path",         required_argument, 0, 'P'},
     {"logfile",      required_argument, 0, 'L'},
+    {"logmark",      required_argument, 0, 'v'},
     {"daemon",       no_argument,       0, 'd'},
     {"help",         no_argument,       0, 'H'},
     {0, 0, 0, 0},
@@ -229,7 +232,7 @@ void bolt_parse_options(int argc, char *argv[])
 {
     int c;
 
-    while ((c = getopt_long(argc, argv, "h:p:w:C:F:L:P:dH",
+    while ((c = getopt_long(argc, argv, "h:p:w:C:F:L:v:P:dH",
         long_options, NULL)) != -1)
     {
         switch (c) {
@@ -264,6 +267,17 @@ void bolt_parse_options(int argc, char *argv[])
             break;
         case 'L':
             setting->logfile = strdup(optarg);
+            break;
+        case 'v':
+            if (!strcmp(optarg, "DEBUG")) {
+                setting->logmark = BOLT_LOG_DEBUG;
+            } else if (!strcmp(optarg, "NOTICE")) {
+                setting->logmark = BOLT_LOG_NOTICE;
+            } else if (!strcmp(optarg, "ALERT")) {
+                setting->logmark = BOLT_LOG_ALERT;
+            } else if (!strcmp(optarg, "ERROR")) {
+                setting->logmark = BOLT_LOG_ERROR;
+            }
             break;
         case 'P':
             setting->path = strdup(optarg);
@@ -307,7 +321,7 @@ int main(int argc, char *argv[])
         bolt_daemonize();
     }
 
-    if (bolt_init_log(setting->logfile, BOLT_LOG_DEBUG) == -1
+    if (bolt_init_log(setting->logfile, setting.logmark) == -1
         || bolt_init_service() == -1
         || bolt_init_connections() == -1
         || bolt_init_workers(setting->workers) == -1

@@ -64,7 +64,7 @@ bolt_gc_process(void *arg)
         list_for_each_safe(e, n, &service->gc_lru) {
 
             cache = list_entry(e, bolt_cache_t, link);
-            if (cache->refcount > 0) { /* This cache using */
+            if (cache->refcount > 0) { /* This cache be connection using */
                 continue;
             }
 

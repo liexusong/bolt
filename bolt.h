@@ -37,6 +37,7 @@ typedef struct {
     short port;
     int workers;
     char *logfile;
+    int logmark;
     int daemon;
     int max_cache;     /* The max cache size */
     int gc_threshold;  /* The range 1 ~ 100 */
