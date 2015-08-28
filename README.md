@@ -9,6 +9,10 @@ Bolt - The Realtime Image Compress System
 
 &nbsp;&nbsp;&nbsp;&nbsp;另外Bolt替换缓存机制，处理过的图片不再进行第二次处理，除非内存不足的时候，Bolt才会处理LRU算法来删除缓存中的图片，在启动Bolt的时候可以使用“--max-cache”启动参数来设置最大内存限制。Bolt使用LRU算法来淘汰缓存的图片，也就是说一般只会淘汰较少访问的图片，这就可以很好的限制Bolt的内存使用。
 
+用在哪里
+--------
+Bolt可以用在内存和CPU都过剩的服务器，另外使用Bolt可以减少磁盘的使用，加快图片的加载速度。
+
 安装
 ----
 * 安装libevent (http://libevent.org/)
