@@ -19,3 +19,16 @@ $ git clone https://github.com/liexusong/bolt
 $ cd bolt
 $ make
 ```
+
+Bolt启动项说明
+--------------
+* --host <str>          设置绑定的IP
+* --port <int>          设置监听的端口
+* --workers <int>       启动多少个worker线程(用于裁剪图片)
+* --logfile <str>       日志文件输出的路径
+* --logmark <str>       日志要显示的级别，可以选择(DEBUG|NOTICE|ALERT|ERROR)
+* --max-cache <int>     设置Bolt可以使用的最大内存(单位为字节)
+* --gc-threshold <int>  GC要清理的阀值(也就是说GC会清理到max-cache的百分之多少停止，可选值为0 ~ 99)
+* --path <str>          要进行裁剪的图片源路径
+* --daemon              是否启动守护进程模式
+* --help                显示帮助信息

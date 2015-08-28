@@ -211,7 +211,7 @@ void bolt_usage()
     fprintf(stderr, "\t--logfile <str>       The log file\n");
     fprintf(stderr, "\t--logmark <str>       Which level log would be mark (DEBUG|NOTICE|ALERT|ERROR)\n");
     fprintf(stderr, "\t--max-cache <int>     The max cache size\n");
-    fprintf(stderr, "\t--gc-threshold <int>  The GC threshold (range 1 ~ 100)\n");
+    fprintf(stderr, "\t--gc-threshold <int>  The GC threshold (range 0 ~ 99)\n");
     fprintf(stderr, "\t--path <str>          The image source path\n");
     fprintf(stderr, "\t--daemon              Using daemonize mode\n");
     fprintf(stderr, "\t--help                Display the usage\n\n");
