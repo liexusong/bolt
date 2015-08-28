@@ -321,7 +321,7 @@ int main(int argc, char *argv[])
         bolt_daemonize();
     }
 
-    if (bolt_init_log(setting->logfile, setting.logmark) == -1
+    if (bolt_init_log(setting->logfile, setting->logmark) == -1
         || bolt_init_service() == -1
         || bolt_init_connections() == -1
         || bolt_init_workers(setting->workers) == -1
