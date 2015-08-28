@@ -19,8 +19,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdlib.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <getopt.h>
 #include <string.h>
 #include "bolt.h"
