@@ -545,8 +545,8 @@ bolt_connection_http_parse_url(struct http_parser *p,
         return -1;
     }
 
-    start = at;
-    end = at + len;
+    start = (char *)at;
+    end = (char *)at + len;
     
     while (start < end && *start == '/') start++;
 
