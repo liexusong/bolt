@@ -250,7 +250,7 @@ bolt_worker_process(void *arg)
     bolt_wait_queue_t *waitq;
     int                wakeup;
     bolt_connection_t *c;
-    int                need_gc = 0;
+    int                start_gc = 0;
     int                http_code;
     int                retval;
 
@@ -324,7 +324,7 @@ bolt_worker_process(void *arg)
 
             service->total_mem_used += size;
             if (service->total_mem_used > setting->max_cache) {
-                need_gc = 1;
+                start_gc = 1;
             }
 
         } else {
@@ -368,7 +368,7 @@ bolt_worker_process(void *arg)
             write(service->wakeup_notify[1], "\0", 1);
         }
 
-        if (need_gc) { /* Need GC */
+        if (start_gc) { /* Need GC */
             bolt_gc_start();
         }
 

@@ -19,13 +19,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netdb.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <getopt.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <errno.h>
+#include <signal.h>
 #include "bolt.h"
 #include "net.h"
 #include "connection.h"
@@ -34,7 +36,7 @@
 
 bolt_setting_t *setting, _setting = {
     .host = "0.0.0.0",
-    .port = 8080,
+    .port = 80,
     .workers = 10,
     .logfile = NULL,
     .logmark = BOLT_LOG_ERROR,
@@ -52,10 +54,11 @@ void
 bolt_accept_handler(int sock, short event, void *arg)
 {
     struct sockaddr_in addr;
-    int nsock, size;
+    socklen_t size = sizeof(addr);
+    int nsock;
 
     for (;;) {
-        nsock = accept(sock, (struct sockaddr*)&addr, &size);
+        nsock = accept(sock, (struct sockaddr *)&addr, &size);
         if (nsock == -1) {
             return;
         }
@@ -305,6 +308,8 @@ void bolt_parse_options(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+    sigset_t signal_mask;
+
     setting = &_setting;
     service = &_service;
 
@@ -324,6 +329,12 @@ int main(int argc, char *argv[])
         bolt_daemonize();
     }
 
+    /* block pipe signal */
+    sigemptyset(&signal_mask);
+    sigaddset(&signal_mask, SIGPIPE);
+
+    pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+
     if (bolt_init_log(setting->logfile, setting->logmark) == -1
         || bolt_init_service() == -1
         || bolt_init_connections() == -1
@@ -339,3 +350,4 @@ int main(int argc, char *argv[])
 
     exit(0);
 }
+
