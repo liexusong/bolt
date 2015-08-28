@@ -329,7 +329,6 @@ int main(int argc, char *argv[])
         bolt_daemonize();
     }
 
-    /* block pipe signal */
     sigemptyset(&signal_mask);
     sigaddset(&signal_mask, SIGPIPE);
 
@@ -350,4 +349,3 @@ int main(int argc, char *argv[])
 
     exit(0);
 }
-
