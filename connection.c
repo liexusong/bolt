@@ -182,7 +182,7 @@ bolt_create_connection(int sock)
     c->hp.data = c;
 
     if (bolt_connection_install_revent(c,
-             bolt_connection_recv_handler) == -1)
+        bolt_connection_recv_handler) == -1)
     {
         bolt_free_connection(c);
         return NULL;
@@ -395,7 +395,7 @@ bolt_connection_send_handler(int sock, short event, void *arg)
             c->send_state = BOLT_SEND_CONTENT_STATE;
 
         } else {
-            if (c->http_code == 200) {
+            if (c->http_code == 200 && c->icache) {
                 c->icache->refcount -= 1;
                 c->icache = NULL;
             }
@@ -468,7 +468,7 @@ bolt_connection_process_request(bolt_connection_t *c)
 {
     bolt_cache_t *cache;
     bolt_wait_queue_t *waitq;
-    int passby = 0, send = 0;
+    int pass = 0, send = 0;
 
     if (c->parse_error != 0) {
         bolt_log(BOLT_LOG_ERROR,
@@ -509,7 +509,7 @@ bolt_connection_process_request(bolt_connection_t *c)
             jk_hash_insert(service->waiting_htb,
                            c->filename, c->fnlen, waitq, 0);
 
-            passby = 1;
+            pass = 1;
         }
 
         list_add(&c->link, &waitq->wait_conns);
@@ -517,9 +517,11 @@ bolt_connection_process_request(bolt_connection_t *c)
 
     pthread_mutex_unlock(&service->cache_lock);
 
-    if (passby && bolt_worker_pass_task(c) == -1) {
+    if (pass && bolt_worker_pass_task(c) == -1) {
         return -1;
-    } else if (send) {
+    }
+
+    if (send) {
         bolt_connection_begin_send(c);
     }
 
@@ -563,4 +565,3 @@ bolt_connection_http_parse_url(struct http_parser *p,
 
     return 0;
 }
-

@@ -32,7 +32,6 @@ typedef struct {
     char path[BOLT_FILENAME_LENGTH];
 } bolt_compress_t;
 
-
 /**
  * Parse task to compress work
  * like: "ooooooooo_00x00_00.jpg"
@@ -251,10 +250,12 @@ bolt_worker_process(void *arg)
     bolt_wait_queue_t *waitq;
     int                wakeup;
     bolt_connection_t *c;
-    int                memory_used;
+    int                need_gc = 0;
     int                http_code;
+    int                retval;
 
     for (;;) {
+
         wakeup = 0;
 
         pthread_mutex_lock(&service->task_lock);
@@ -303,28 +304,53 @@ bolt_worker_process(void *arg)
         cache->cache = blob;
         cache->refcount = 0;
         cache->fnlen = task->fnlen;
+
         memcpy(cache->filename, task->filename, cache->fnlen);
 
-        /* Add to cache table and wakeup waiting connections */
+        /* Lock cache here */
 
         pthread_mutex_lock(&service->cache_lock);
 
-        jk_hash_insert(service->cache_htb,
-                       task->filename, task->fnlen, (void *)cache, 0);
+        retval = jk_hash_insert(service->cache_htb,
+                                task->filename, task->fnlen,
+                                (void *)cache, 0);
 
-        list_add_tail(&cache->link, &service->gc_lru);
+        if (retval == JK_HASH_OK) {
 
-        if (jk_hash_find(service->waiting_htb,
-                         task->filename, task->fnlen,
-                         (void **)&waitq) == JK_HASH_OK)
-        {
+            /* Link to LRU */
+            list_add_tail(&cache->link, &service->gc_lru);
+
+            http_code = 200;
+
+            service->total_mem_used += size;
+            if (service->total_mem_used > setting->max_cache) {
+                need_gc = 1;
+            }
+
+        } else {
+            free(cache->cache);
+            free(cache);
+            cache = NULL;
+            http_code = 500;
+
+            bolt_log(BOLT_LOG_DEBUG, "Failed to add cache to table");
+        }
+
+        retval = jk_hash_find(service->waiting_htb,
+                              task->filename, task->fnlen,
+                              (void **)&waitq);
+
+        if (retval == JK_HASH_OK) { /* Found waiting queue */
+
             list_for_each(e, &waitq->wait_conns) {
                 c = list_entry(e, bolt_connection_t, link);
 
-                cache->refcount++;
+                c->http_code = http_code;
 
-                c->icache = cache;
-                c->http_code = 200;
+                if (cache) {
+                    cache->refcount++;
+                    c->icache = cache;
+                }
             }
 
             jk_hash_remove(service->waiting_htb,
@@ -342,9 +368,7 @@ bolt_worker_process(void *arg)
             write(service->wakeup_notify[1], "\0", 1);
         }
 
-        memory_used = __sync_add_and_fetch(&service->total_mem_used, size);
-
-        if (memory_used > setting->max_cache) { /* Need start GC? */
+        if (need_gc) { /* Need GC */
             bolt_gc_start();
         }
 
@@ -357,7 +381,8 @@ fatal:
         pthread_mutex_lock(&service->cache_lock);
 
         if (jk_hash_find(service->waiting_htb,
-             task->filename, task->fnlen, (void **)&waitq) == JK_HASH_OK)
+                         task->filename, task->fnlen,
+                         (void **)&waitq) == JK_HASH_OK)
         {
             jk_hash_remove(service->waiting_htb,
                            task->filename, task->fnlen);
