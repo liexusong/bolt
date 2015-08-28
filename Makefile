@@ -1,5 +1,6 @@
+
 CC=gcc
-CFLAGS=-fPIC -o
+CFLAGS=-fPIC -g -o
 PROC=bolt
 INCPATH=-I/usr/local/include/ImageMagick
 INCLIB=-lpthread -lMagickWand -levent

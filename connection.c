@@ -468,11 +468,11 @@ bolt_connection_process_request(bolt_connection_t *c)
 {
     bolt_cache_t *cache;
     bolt_wait_queue_t *waitq;
-    int dopass = 1;
+    int passby = 0, send = 0;
 
     if (c->parse_error != 0) {
         bolt_log(BOLT_LOG_ERROR,
-                 "Header was invaild when parsed, socket(%d)", c->sock)
+                 "Header was invaild when parsed, socket(%d)", c->sock);
         return -1;
     }
 
@@ -488,7 +488,7 @@ bolt_connection_process_request(bolt_connection_t *c)
         list_add_tail(&cache->link, &service->gc_lru);
 
         c->icache = cache;
-        dopass = 0;
+        send = 1;
 
     } else {
         if (jk_hash_find(service->waiting_htb, c->filename,
@@ -508,6 +508,8 @@ bolt_connection_process_request(bolt_connection_t *c)
 
             jk_hash_insert(service->waiting_htb,
                            c->filename, c->fnlen, waitq, 0);
+
+            passby = 1;
         }
 
         list_add(&c->link, &waitq->wait_conns);
@@ -515,13 +517,17 @@ bolt_connection_process_request(bolt_connection_t *c)
 
     pthread_mutex_unlock(&service->cache_lock);
 
-    if (dopass && bolt_worker_pass_task(c) == -1) {
+    if (passby && bolt_worker_pass_task(c) == -1) {
         return -1;
-    } else {
+    } else if (send) {
         bolt_connection_begin_send(c);
     }
 
-    bolt_connection_remove_revent(c); /* Remove read event */
+    /*
+     * Remove read event here,
+     * because we don't need read when processing request.
+     */
+    bolt_connection_remove_revent(c);
 
     return 0;
 }

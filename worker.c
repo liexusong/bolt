@@ -316,12 +316,13 @@ bolt_worker_process(void *arg)
         list_add_tail(&cache->link, &service->gc_lru);
 
         if (jk_hash_find(service->waiting_htb,
-             task->filename, task->fnlen, (void **)&waitq) == JK_HASH_OK)
+                         task->filename, task->fnlen,
+                         (void **)&waitq) == JK_HASH_OK)
         {
             list_for_each(e, &waitq->wait_conns) {
                 c = list_entry(e, bolt_connection_t, link);
 
-                cache->refcount += 1;
+                cache->refcount++;
 
                 c->icache = cache;
                 c->http_code = 200;
@@ -399,6 +400,7 @@ bolt_worker_pass_task(bolt_connection_t *c)
 
     task->fnlen = c->fnlen;
     memcpy(task->filename, c->filename, c->fnlen);
+    task->filename[c->fnlen] = 0;
 
     pthread_mutex_lock(&service->task_lock);
     list_add(&task->link, &service->task_queue);

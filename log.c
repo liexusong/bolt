@@ -43,8 +43,8 @@ bolt_init_log(char *file, int mark)
         return 0;
     }
 
-    if (level < BOLT_LOG_DEBUG
-        || level > BOLT_LOG_ERROR)
+    if (mark < BOLT_LOG_DEBUG
+        || mark > BOLT_LOG_ERROR)
     {
         return -1;
     }
