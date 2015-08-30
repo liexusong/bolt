@@ -177,7 +177,6 @@ bolt_worker_compress(char *path, int quality,
 {
     MagickWand *wand = NULL;
     int orig_width, orig_height;
-    int wm_x, wm_y;
     float rate1, rate2;
     char *blob;
 
@@ -193,7 +192,9 @@ bolt_worker_compress(char *path, int quality,
     orig_width = MagickGetImageWidth(wand);
     orig_height = MagickGetImageHeight(wand);
 
-    if (setting->watermark_enable) {
+    if (setting->watermark_enable) { /* Watermark process */
+        int wm_x, wm_y;
+
         if (orig_width > bolt_watermark_width + BOLT_WATERMARK_PADDING
             && orig_height > bolt_watermark_height + BOLT_WATERMARK_PADDING)
         {
