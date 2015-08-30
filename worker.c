@@ -201,9 +201,9 @@ bolt_worker_compress(char *path, int quality,
             wm_x = orig_width - bolt_watermark_width - BOLT_WATERMARK_PADDING;
             wm_y = orig_height - bolt_watermark_height - BOLT_WATERMARK_PADDING;
 
-            if ( MagickCompositeImage(wand, bolt_watermark_wand,
-                                      MagickGetImageCompose(bolt_watermark_wand),
-                                      wm_x, wm_y) == MagickFalse)
+            if (MagickCompositeImage(wand, bolt_watermark_wand,
+                                     MagickGetImageCompose(bolt_watermark_wand),
+                                     wm_x, wm_y) == MagickFalse)
             {
                 bolt_log(BOLT_LOG_ERROR, "Failed to add water mark to image");
             }
@@ -481,7 +481,8 @@ bolt_init_workers(int num)
             }
 
         } else {
-            bolt_log(BOLT_LOG_ERROR, "Failed to create ImageMagickWand object");
+            bolt_log(BOLT_LOG_ERROR,
+                     "Failed to create ImageMagickWand object");
             return -1;
         }
 

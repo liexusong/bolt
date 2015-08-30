@@ -183,7 +183,7 @@ bolt_create_connection(int sock)
     c->hp.data = c;
 
     if (bolt_connection_install_revent(c,
-        bolt_connection_recv_handler) == -1)
+                                       bolt_connection_recv_handler) == -1)
     {
         bolt_free_connection(c);
         return NULL;
@@ -325,7 +325,8 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
         if (c->hp.method != HTTP_GET) {
             bolt_free_connection(c);
             bolt_log(BOLT_LOG_ERROR,
-                     "Connection request method not `GET', socket(%d)", c->sock);
+                     "Connection request method not `GET', socket(%d)",
+                     c->sock);
             return;
         }
 
