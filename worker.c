@@ -396,6 +396,7 @@ bolt_worker_process(void *arg)
             free(task);
         if (work)
             free(work);
+
         continue;
 
 fatal:
@@ -445,9 +446,8 @@ bolt_worker_pass_task(bolt_connection_t *c)
         return -1;
     }
 
-    task->fnlen = c->fnlen;
     memcpy(task->filename, c->filename, c->fnlen);
-    task->filename[c->fnlen] = 0;
+    task->fnlen = c->fnlen;
 
     pthread_mutex_lock(&service->task_lock);
     list_add(&task->link, &service->task_queue);
