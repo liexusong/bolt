@@ -28,7 +28,7 @@
 
 #define  BOLT_WATERMARK_PADDING    10
 
-#define  BOLT_VERSION  "V0.1"
+#define  BOLT_VERSION  "V0.2"
 
 
 typedef struct {
