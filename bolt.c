@@ -45,6 +45,8 @@ bolt_setting_t *setting, _setting = {
     .gc_threshold = 80,
     .path = NULL,
     .path_len = 0,
+    .watermark = NULL,
+    .watermark_enable = 0,
 };
 
 bolt_service_t *service, _service;
@@ -213,6 +215,7 @@ void bolt_usage()
     fprintf(stderr, "\t--max-cache <int>     The max cache size\n");
     fprintf(stderr, "\t--gc-threshold <int>  The GC threshold (range 0 ~ 99)\n");
     fprintf(stderr, "\t--path <str>          The image source path\n");
+    fprintf(stderr, "\t--watermark <str>     The water mark image's path\n");
     fprintf(stderr, "\t--daemon              Using daemonize mode\n");
     fprintf(stderr, "\t--help                Display the usage\n\n");
     exit(0);
@@ -226,6 +229,7 @@ struct option long_options[] = {
     {"max-cache",    required_argument, 0, 'C'},
     {"gc-threshold", required_argument, 0, 'F'},
     {"path",         required_argument, 0, 'P'},
+    {"watermark",    required_argument, 0, 'M'},
     {"logfile",      required_argument, 0, 'L'},
     {"logmark",      required_argument, 0, 'v'},
     {"daemon",       no_argument,       0, 'd'},
@@ -238,7 +242,7 @@ void bolt_parse_options(int argc, char *argv[])
 {
     int c;
 
-    while ((c = getopt_long(argc, argv, "h:p:w:C:F:L:v:P:dH",
+    while ((c = getopt_long(argc, argv, "h:p:w:C:F:L:v:P:M:dH",
         long_options, NULL)) != -1)
     {
         switch (c) {
@@ -290,6 +294,12 @@ void bolt_parse_options(int argc, char *argv[])
             setting->path_len = strlen(setting->path);
             if (setting->path_len <= 0) {
                 setting->path = NULL;
+            }
+            break;
+        case 'M':
+            setting->watermark = strdup(optarg);
+            if (setting->watermark) {
+                setting->watermark_enable = 1;
             }
             break;
         case 'd':

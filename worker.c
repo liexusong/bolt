@@ -32,6 +32,12 @@ typedef struct {
     char path[BOLT_FILENAME_LENGTH];
 } bolt_compress_t;
 
+
+static MagickWand *bolt_watermark_wand = NULL;
+static int bolt_watermark_width,
+           bolt_watermark_height;
+
+
 /**
  * Parse task to compress work
  * like: "ooooooooo_00x00_00.jpg"
@@ -171,10 +177,9 @@ bolt_worker_compress(char *path, int quality,
 {
     MagickWand *wand = NULL;
     int orig_width, orig_height;
+    int wm_x, wm_y;
     float rate1, rate2;
     char *blob;
-
-    MagickWandGenesis();
 
     wand = NewMagickWand();
     if (!wand) {
@@ -187,6 +192,22 @@ bolt_worker_compress(char *path, int quality,
 
     orig_width = MagickGetImageWidth(wand);
     orig_height = MagickGetImageHeight(wand);
+
+    if (setting->watermark_enable) {
+        if (orig_width > bolt_watermark_width + BOLT_WATERMARK_PADDING
+            && orig_height > bolt_watermark_height + BOLT_WATERMARK_PADDING)
+        {
+            wm_x = orig_width - bolt_watermark_width - BOLT_WATERMARK_PADDING;
+            wm_y = orig_height - bolt_watermark_height - BOLT_WATERMARK_PADDING;
+
+            if ( MagickCompositeImage(wand, bolt_watermark_wand,
+                                      MagickGetImageCompose(bolt_watermark_wand),
+                                      wm_x, wm_y) == MagickFalse)
+            {
+                bolt_log(BOLT_LOG_ERROR, "Failed to add water mark to image");
+            }
+        }
+    }
 
     if (width <= 0) {
         width = orig_width;
@@ -224,7 +245,6 @@ bolt_worker_compress(char *path, int quality,
     }
 
     DestroyMagickWand(wand);
-    MagickWandTerminus();
 
     return blob;
 
@@ -232,7 +252,6 @@ failed:
 
     if (wand)
         DestroyMagickWand(wand);
-    MagickWandTerminus();
 
     return NULL;
 }
@@ -372,9 +391,10 @@ bolt_worker_process(void *arg)
             bolt_gc_start();
         }
 
-        if (task) free(task);
-        if (work) free(work);
-
+        if (task)
+            free(task);
+        if (work)
+            free(work);
         continue;
 
 fatal:
@@ -404,8 +424,10 @@ fatal:
             write(service->wakeup_notify[1], "\0", 1);
         }
 
-        if (task) free(task);
-        if (work) free(work);
+        if (task)
+            free(task);
+        if (work)
+            free(work);
     }
 }
 
@@ -441,6 +463,31 @@ bolt_init_workers(int num)
     int cnt;
     pthread_t tid;
 
+    MagickWandGenesis(); /* Init ImageMagick */
+
+    if (setting->watermark_enable) {
+
+        bolt_watermark_wand = NewMagickWand();
+
+        if (bolt_watermark_wand) {
+            if (MagickReadImage(bolt_watermark_wand, setting->watermark)
+                == MagickFalse)
+            {
+                bolt_log(BOLT_LOG_ERROR,
+                         "Failed to get watermark from image file `%s'",
+                         setting->watermark);
+                return -1;
+            }
+
+        } else {
+            bolt_log(BOLT_LOG_ERROR, "Failed to create ImageMagickWand object");
+            return -1;
+        }
+
+        bolt_watermark_width = MagickGetImageWidth(bolt_watermark_wand);
+        bolt_watermark_height = MagickGetImageHeight(bolt_watermark_wand);
+    }
+
     for (cnt = 0; cnt < num; cnt++) {
         if (pthread_create(&tid, NULL,
                            bolt_worker_process, NULL) == -1)
@@ -453,3 +500,4 @@ bolt_init_workers(int num)
 
     return 0;
 }
+

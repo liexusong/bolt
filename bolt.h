@@ -13,11 +13,9 @@
 #define  BOLT_RBUF_SIZE        2048
 #define  BOLT_WBUF_SIZE        512
 
-
 #define  BOLT_LF    '\n'
 #define  BOLT_CR    '\r'
 #define  BOLT_CRLF  "\r\n"
-
 
 #define  BOLT_HTTP_STATE_START     0
 #define  BOLT_HTTP_STATE_CR        1
@@ -25,9 +23,10 @@
 #define  BOLT_HTTP_STATE_CRLFCR    3
 #define  BOLT_HTTP_STATE_CRLFCRLF  4
 
-
 #define  BOLT_SEND_HEADER_STATE    1
 #define  BOLT_SEND_CONTENT_STATE   2
+
+#define  BOLT_WATERMARK_PADDING    10
 
 #define  BOLT_VERSION  "V0.1"
 
@@ -43,6 +42,8 @@ typedef struct {
     int gc_threshold;  /* The range 1 ~ 100 */
     char *path;
     int path_len;
+    char *watermark;
+    int watermark_enable;
 } bolt_setting_t;
 
 

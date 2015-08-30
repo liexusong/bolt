@@ -24,6 +24,10 @@ $ cd bolt
 $ make
 ```
 
+使用方式
+--------
+访问URL：http://your-host/filename_(width)x(height)_(quality).jpg
+
 Bolt启动项说明
 --------------
 * --host <str>          设置绑定的IP
@@ -34,6 +38,7 @@ Bolt启动项说明
 * --max-cache <int>     设置Bolt可以使用的最大内存(单位为字节)
 * --gc-threshold <int>  GC要清理的阀值(也就是说GC会清理到max-cache的百分之多少停止，可选值为0 ~ 99)
 * --path <str>          要进行裁剪的图片源路径
+* --watermark <str>     水印图片路径
 * --daemon              是否启动守护进程模式
 * --help                显示帮助信息
 
