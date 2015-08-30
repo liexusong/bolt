@@ -482,7 +482,7 @@ bolt_connection_process_request(bolt_connection_t *c)
     if (jk_hash_find(service->cache_htb, c->filename,
                      c->fnlen, (void **)&cache) == JK_HASH_OK)
     {
-        cache->refcount += 1;
+        cache->refcount++;
 
         /* Move cache to LRU tail */
         list_del(&cache->link);
