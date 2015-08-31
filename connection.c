@@ -512,8 +512,6 @@ bolt_connection_process_request(bolt_connection_t *c)
     if (jk_hash_find(service->cache_htb, c->filename,
                      c->fnlen, (void **)&cache) == JK_HASH_OK)
     {
-        time_t tms;
-
         /* Move cache to LRU tail */
         list_del(&cache->link);
         list_add_tail(&cache->link, &service->gc_lru);
