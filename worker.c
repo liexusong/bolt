@@ -21,10 +21,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <wand/magick_wand.h>
 #include "bolt.h"
 #include "utils.h"
+
 
 typedef struct {
     int width;

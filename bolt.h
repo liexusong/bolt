@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <event.h>
+#include <time.h>
 #include "http_parser.h"
 #include "hash.h"
 #include "list.h"

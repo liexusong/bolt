@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
 
 
 /*
@@ -251,9 +253,9 @@ bolt_parse_time(char *value, size_t len)
 
 
 void
-bolt_gmtime(time_t t, ngx_tm_t *tp)
+bolt_gmtime(time_t t, struct tm *tp)
 {
-    ngx_int_t  sec, min, hour, mday, mon, year, wday, yday, days;
+    int sec, min, hour, mday, mon, year, wday, yday, days;
 
     days = t / 86400;
 
@@ -307,43 +309,32 @@ bolt_gmtime(time_t t, ngx_tm_t *tp)
                 mday -= 28;
             }
         }
-
-/*
- *  there is no "yday" in Win32 SYSTEMTIME
- *
- *  } else {
- *      yday += 31 + 28;
- *
- *      if ((year % 4 == 0) && (year % 100 || (year % 400 == 0))) {
- *           yday++;
- *      }
- */
     }
 
-    tp->ngx_tm_sec = (ngx_tm_sec_t) sec;
-    tp->ngx_tm_min = (ngx_tm_min_t) min;
-    tp->ngx_tm_hour = (ngx_tm_hour_t) hour;
-    tp->ngx_tm_mday = (ngx_tm_mday_t) mday;
-    tp->ngx_tm_mon = (ngx_tm_mon_t) mon;
-    tp->ngx_tm_year = (ngx_tm_year_t) year;
-    tp->ngx_tm_wday = (ngx_tm_wday_t) wday;
+    tp->tm_sec = sec;
+    tp->tm_min = min;
+    tp->tm_hour = hour;
+    tp->tm_mday = mday;
+    tp->tm_mon = mon;
+    tp->tm_year = year;
+    tp->tm_wday = wday;
 }
 
 
 size_t
-bolt_make_time(char *buf, time_t t)
+bolt_format_time(char *buf, time_t t)
 {
     struct tm tm;
 
     bolt_gmtime(t, &tm);
 
-    return ngx_snprintf((char *) buf, sizeof("Mon, 28 Sep 1970 06:00:00 GMT"),
-                                      "%s, %02d %s %4d %02d:%02d:%02d GMT",
-                                      week[tm.ngx_tm_wday],
-                                      tm.ngx_tm_mday,
-                                      months[tm.ngx_tm_mon - 1],
-                                      tm.ngx_tm_year,
-                                      tm.ngx_tm_hour,
-                                      tm.ngx_tm_min,
-                                      tm.ngx_tm_sec);
+    return snprintf((char *) buf, sizeof("Mon, 28 Sep 1970 06:00:00 GMT"),
+                                  "%s, %02d %s %4d %02d:%02d:%02d GMT",
+                                  week[tm.tm_wday],
+                                  tm.tm_mday,
+                                  months[tm.tm_mon - 1],
+                                  tm.tm_year,
+                                  tm.tm_hour,
+                                  tm.tm_min,
+                                  tm.tm_sec);
 }
