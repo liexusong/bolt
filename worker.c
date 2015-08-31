@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <wand/magick_wand.h>
 #include "bolt.h"
 #include "utils.h"
@@ -323,6 +324,7 @@ bolt_worker_process(void *arg)
         cache->size = size;
         cache->cache = blob;
         cache->refcount = 0;
+        cache->time = time(NULL);
         cache->fnlen = task->fnlen;
 
         memcpy(cache->filename, task->filename, cache->fnlen);

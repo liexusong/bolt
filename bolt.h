@@ -80,6 +80,7 @@ typedef struct {
     int size;
     int refcount;
     void *cache;
+    time_t time;
     char filename[BOLT_FILENAME_LENGTH];
     int fnlen;
 } bolt_cache_t;
