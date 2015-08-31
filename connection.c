@@ -34,6 +34,12 @@ bolt_connection_process_request(bolt_connection_t *c);
 static int
 bolt_connection_http_parse_url(struct http_parser *parser,
     const char *at, size_t len);
+static int
+bolt_connection_http_parse_field(struct http_parser *p,
+    const char *at, size_t len);
+static int
+bolt_connection_http_parse_value(struct http_parser *p,
+    const char *at, size_t len);
 void
 bolt_connection_recv_handler(int sock, short event, void *arg);
 void
@@ -46,8 +52,8 @@ static void *freeconn_list[BOLT_MAX_FREE_CONNECTIONS];
 static struct http_parser_settings http_parser_callbacks = {
     .on_message_begin    = NULL,
     .on_url              = bolt_connection_http_parse_url,
-    .on_header_field     = NULL,
-    .on_header_value     = NULL,
+    .on_header_field     = bolt_connection_http_parse_field,
+    .on_header_value     = bolt_connection_http_parse_value,
     .on_headers_complete = NULL,
     .on_body             = NULL,
     .on_message_complete = NULL
@@ -173,11 +179,15 @@ bolt_create_connection(int sock)
     c->keepalive = 0;
     c->revset = 0;
     c->wevset = 0;
+    c->parse_field = BOLT_PARSE_FIELD_START;
     c->parse_error = 0;
+    c->header_only = 0;
     c->rpos = c->rbuf;
     c->rend = c->rbuf + BOLT_RBUF_SIZE;
     c->rlast = c->rbuf;
     c->icache = NULL;
+
+    c->headers.tms = 0;
 
     http_parser_init(&c->hp, HTTP_REQUEST);
     c->hp.data = c;
@@ -273,10 +283,20 @@ bolt_connection_recv_completed(bolt_connection_t *c)
 void
 bolt_connection_keepalive(bolt_connection_t *c)
 {
-    c->rlast = c->rbuf;
-    c->rpos = c->rbuf;
-    c->recv_state = BOLT_HTTP_STATE_START;
     c->http_code = 200;
+    c->recv_state = BOLT_HTTP_STATE_START;
+    c->keepalive = 0;
+    c->parse_field = BOLT_PARSE_FIELD_START;
+    c->parse_error = 0;
+    c->header_only = 0;
+    c->rpos = c->rbuf;
+    c->rlast = c->rbuf;
+    c->icache = NULL;
+
+    c->headers.tms = 0;
+
+    http_parser_init(&c->hp, HTTP_REQUEST);
+    c->hp.data = c;
 
     bolt_connection_remove_wevent(c);
     bolt_connection_install_revent(c,
@@ -370,7 +390,8 @@ bolt_connection_send_handler(int sock, short event, void *arg)
 
     if (c->wpos >= c->wend) {
 
-        if (c->send_state == BOLT_SEND_HEADER_STATE) {
+        if (c->send_state == BOLT_SEND_HEADER_STATE && !c->header_only) {
+
             switch (c->http_code) {
             case 200:
                 c->wpos = (char *)c->icache->cache;
@@ -402,7 +423,7 @@ bolt_connection_send_handler(int sock, short event, void *arg)
                 c->icache = NULL;
             }
 
-            if (c->keepalive && c->http_code == 200) { /* keepalive? */
+            if (c->keepalive) { /* keepalive? */
                 bolt_connection_keepalive(c);
             } else {
                 bolt_free_connection(c);
@@ -423,8 +444,16 @@ bolt_connection_begin_send(bolt_connection_t *c)
                          "HTTP/1.1 200 OK\r\n"
                          "Content-Type: image/jpeg\r\n"
                          "Content-Length: %d\r\n"
+                         "Last-Modified: %s\r\n"
                          "Server: Bolt\r\n\r\n",
-                         c->icache->size);
+                         c->icache->size,
+                         c->icache->datetime);
+        break;
+
+    case 304:
+        nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
+                         "HTTP/1.1 304 Not Modified\r\n"
+                         "Server: Bolt\r\n\r\n");
         break;
 
     case 400:
@@ -483,13 +512,21 @@ bolt_connection_process_request(bolt_connection_t *c)
     if (jk_hash_find(service->cache_htb, c->filename,
                      c->fnlen, (void **)&cache) == JK_HASH_OK)
     {
-        cache->refcount++;
+        time_t tms;
 
         /* Move cache to LRU tail */
         list_del(&cache->link);
         list_add_tail(&cache->link, &service->gc_lru);
 
-        c->icache = cache;
+        if (cache->time == c->headers.tms) {
+            c->http_code = 304;
+            c->header_only = 1;
+        } else {
+            c->http_code = 200;
+            c->icache = cache;
+            cache->refcount++;
+        }
+
         send = 1;
 
     } else {
@@ -567,3 +604,32 @@ bolt_connection_http_parse_url(struct http_parser *p,
 
     return 0;
 }
+
+
+static int
+bolt_connection_http_parse_field(struct http_parser *p,
+    const char *at, size_t len)
+{
+    bolt_connection_t *c = p->data;
+
+    if (!strncasecmp(at, "If-Modified-Since", len)) {
+        c->parse_field = BOLT_PARSE_FIELD_IF_MODIFIED_SINCE;
+    }
+
+    return 0;
+}
+
+
+static int
+bolt_connection_http_parse_value(struct http_parser *p,
+    const char *at, size_t len)
+{
+    bolt_connection_t *c = p->data;
+
+    if (c->parse_field == BOLT_PARSE_FIELD_IF_MODIFIED_SINCE) {
+        c->headers.tms = bolt_parse_time(at, len);
+    }
+
+    return 0;
+}
+

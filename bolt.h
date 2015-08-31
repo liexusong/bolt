@@ -9,6 +9,7 @@
 #include "list.h"
 #include "log.h"
 
+
 #define  BOLT_MIN_CACHE_SIZE   (1024 * 1024 * 10)    /* 10MB */
 #define  BOLT_FILENAME_LENGTH  1024
 #define  BOLT_RBUF_SIZE        2048
@@ -24,10 +25,15 @@
 #define  BOLT_HTTP_STATE_CRLFCR    3
 #define  BOLT_HTTP_STATE_CRLFCRLF  4
 
+#define  BOLT_PARSE_FIELD_START              0
+#define  BOLT_PARSE_FIELD_IF_MODIFIED_SINCE  1
+
 #define  BOLT_SEND_HEADER_STATE    1
 #define  BOLT_SEND_CONTENT_STATE   2
 
 #define  BOLT_WATERMARK_PADDING    10
+
+#define  BOLT_DATETIME_LENGTH  sizeof("Mon, 28 Sep 1970 06:00:00 GMT")
 
 #define  BOLT_VERSION  "V0.2"
 
@@ -82,6 +88,7 @@ typedef struct {
     int refcount;
     void *cache;
     time_t time;
+    char datetime[BOLT_DATETIME_LENGTH];
     char filename[BOLT_FILENAME_LENGTH];
     int fnlen;
 } bolt_cache_t;
@@ -94,12 +101,17 @@ typedef struct {
     int recv_state;
     int send_state;
     int keepalive;
+    int parse_field;
     int parse_error;
+    int header_only;
     struct event revent;
     struct event wevent;
     int revset:1;
     int wevset:1;
     struct http_parser hp;
+    struct {
+        time_t tms;
+    } headers;
     /* read buffer */
     char rbuf[BOLT_RBUF_SIZE];
     char *rpos;

@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include "bolt.h"
 
 
 /*
@@ -8,6 +9,9 @@
  */
 
 static int mday[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+static char *week[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+static char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
 time_t
 bolt_parse_time(char *value, size_t len)
@@ -328,7 +332,7 @@ bolt_format_time(char *buf, time_t t)
 
     bolt_gmtime(t, &tm);
 
-    return snprintf((char *) buf, sizeof("Mon, 28 Sep 1970 06:00:00 GMT"),
+    return snprintf((char *) buf, BOLT_DATETIME_LENGTH,
                                   "%s, %02d %s %4d %02d:%02d:%02d GMT",
                                   week[tm.tm_wday],
                                   tm.tm_mday,

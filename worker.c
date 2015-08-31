@@ -24,6 +24,7 @@
 #include <wand/magick_wand.h>
 #include "bolt.h"
 #include "utils.h"
+#include "time.h"
 
 
 typedef struct {
@@ -327,6 +328,7 @@ bolt_worker_process(void *arg)
         cache->time = time(NULL);
         cache->fnlen = task->fnlen;
 
+        bolt_format_time(cache->datetime, cache->time);
         memcpy(cache->filename, task->filename, cache->fnlen);
 
         /* Lock cache here */
