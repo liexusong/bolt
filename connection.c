@@ -212,7 +212,7 @@ bolt_free_connection(bolt_connection_t *c)
     bolt_connection_remove_wevent(c);
 
     if (c->icache) {
-        c->icache->refcount -= 1;
+        c->icache->refcount--;
         c->icache = NULL;
     }
 
@@ -283,6 +283,11 @@ bolt_connection_recv_completed(bolt_connection_t *c)
 void
 bolt_connection_keepalive(bolt_connection_t *c)
 {
+    if (c->http_code == 200) {
+        c->icache->refcount--;
+        c->icache = NULL;
+    }
+
     c->http_code = 200;
     c->recv_state = BOLT_HTTP_STATE_START;
     c->keepalive = 0;
@@ -291,7 +296,6 @@ bolt_connection_keepalive(bolt_connection_t *c)
     c->header_only = 0;
     c->rpos = c->rbuf;
     c->rlast = c->rbuf;
-    c->icache = NULL;
 
     c->headers.tms = 0;
 
@@ -418,11 +422,6 @@ bolt_connection_send_handler(int sock, short event, void *arg)
             c->send_state = BOLT_SEND_CONTENT_STATE;
 
         } else {
-            if (c->http_code == 200) {
-                c->icache->refcount--;
-                c->icache = NULL;
-            }
-
             if (c->keepalive) { /* keepalive? */
                 bolt_connection_keepalive(c);
             } else {
