@@ -418,8 +418,8 @@ bolt_connection_send_handler(int sock, short event, void *arg)
             c->send_state = BOLT_SEND_CONTENT_STATE;
 
         } else {
-            if (c->http_code == 200 && c->icache) {
-                c->icache->refcount -= 1;
+            if (c->http_code == 200) {
+                c->icache->refcount--;
                 c->icache = NULL;
             }
 
