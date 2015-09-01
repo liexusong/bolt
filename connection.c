@@ -290,8 +290,8 @@ bolt_connection_keepalive(bolt_connection_t *c)
 
     c->http_code = 200;
     c->recv_state = BOLT_HTTP_STATE_START;
-    c->keepalive = 0;
     c->parse_field = BOLT_PARSE_FIELD_START;
+    c->keepalive = 0;
     c->parse_error = 0;
     c->header_only = 0;
     c->rpos = c->rbuf;
