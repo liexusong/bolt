@@ -32,6 +32,7 @@
 #include "net.h"
 #include "connection.h"
 #include "worker.h"
+#include "config.h"
 #include "utils.h"
 
 bolt_setting_t *setting, _setting = {
@@ -206,106 +207,25 @@ int bolt_init_service()
 void bolt_usage()
 {
     fprintf(stderr, "\nbolt usage:\n");
-    fprintf(stderr, "----------------------------------------------------\n");
-    fprintf(stderr, "\t--host <str>          The host to bind\n");
-    fprintf(stderr, "\t--port <int>          The port to listen\n");
-    fprintf(stderr, "\t--workers <int>       The worker threads number\n");
-    fprintf(stderr, "\t--logfile <str>       The log file\n");
-    fprintf(stderr, "\t--logmark <str>       Which level log would be mark (DEBUG|NOTICE|ALERT|ERROR)\n");
-    fprintf(stderr, "\t--max-cache <int>     The max cache size\n");
-    fprintf(stderr, "\t--gc-threshold <int>  The GC threshold (range 0 ~ 99)\n");
-    fprintf(stderr, "\t--path <str>          The image source path\n");
-    fprintf(stderr, "\t--watermark <str>     The water mark image's path\n");
-    fprintf(stderr, "\t--daemon              Using daemonize mode\n");
-    fprintf(stderr, "\t--help                Display the usage\n\n");
+    fprintf(stderr, "-----------------------------------------\n");
+    fprintf(stderr, "  -c <path>   Configure file path to read\n");
+    fprintf(stderr, "  -h          Display bolt's help\n\n");
     exit(0);
 }
-
-
-struct option long_options[] = {
-    {"host",         required_argument, 0, 'h'},
-    {"port",         required_argument, 0, 'p'},
-    {"workers",      required_argument, 0, 'w'},
-    {"max-cache",    required_argument, 0, 'C'},
-    {"gc-threshold", required_argument, 0, 'F'},
-    {"path",         required_argument, 0, 'P'},
-    {"watermark",    required_argument, 0, 'M'},
-    {"logfile",      required_argument, 0, 'L'},
-    {"logmark",      required_argument, 0, 'v'},
-    {"daemon",       no_argument,       0, 'd'},
-    {"help",         no_argument,       0, 'H'},
-    {0, 0, 0, 0},
-};
 
 
 void bolt_parse_options(int argc, char *argv[])
 {
     int c;
 
-    while ((c = getopt_long(argc, argv, "h:p:w:C:F:L:v:P:M:dH",
-        long_options, NULL)) != -1)
-    {
+    while((c = getopt(argc, argv,"c:h"))!= -1) {
         switch (c) {
+        case 'c':
+            if (bolt_read_confs(optarg) == -1) {
+                exit(1);
+            }
+            break;
         case 'h':
-            setting->host = strdup(optarg);
-            break;
-        case 'p':
-            setting->port = atoi(optarg);
-            if (setting->port <= 0) {
-                setting->port = 8080;
-            }
-            break;
-        case 'w':
-            setting->workers = atoi(optarg);
-            if (setting->workers <= 0) {
-                setting->workers = 5;
-            }
-            break;
-        case 'C':
-            setting->max_cache = atoi(optarg);
-            if (setting->max_cache < BOLT_MIN_CACHE_SIZE) {
-                setting->max_cache = BOLT_MIN_CACHE_SIZE;
-            }
-            break;
-        case 'F':
-            setting->gc_threshold = atoi(optarg);
-            if (setting->gc_threshold < 0
-                || setting->gc_threshold >= 100)
-            {
-                setting->gc_threshold = 80;
-            }
-            break;
-        case 'L':
-            setting->logfile = strdup(optarg);
-            break;
-        case 'v':
-            if (!strcmp(optarg, "DEBUG")) {
-                setting->logmark = BOLT_LOG_DEBUG;
-            } else if (!strcmp(optarg, "NOTICE")) {
-                setting->logmark = BOLT_LOG_NOTICE;
-            } else if (!strcmp(optarg, "ALERT")) {
-                setting->logmark = BOLT_LOG_ALERT;
-            } else if (!strcmp(optarg, "ERROR")) {
-                setting->logmark = BOLT_LOG_ERROR;
-            }
-            break;
-        case 'P':
-            setting->path = strdup(optarg);
-            setting->path_len = strlen(setting->path);
-            if (setting->path_len <= 0) {
-                setting->path = NULL;
-            }
-            break;
-        case 'M':
-            setting->watermark = strdup(optarg);
-            if (setting->watermark) {
-                setting->watermark_enable = 1;
-            }
-            break;
-        case 'd':
-            setting->daemon = 1;
-            break;
-        case 'H':
             bolt_usage();
             break;
         default:
@@ -330,7 +250,7 @@ int main(int argc, char *argv[])
     if (setting->path == NULL
         || !bolt_utils_file_exists(setting->path))
     {
-        fprintf(stderr, "Fatal: Image source path must be set by `--path' option "
+        fprintf(stderr, "Fatal: Image source path must be set by `path = xxx' configure item "
                         "and the path must be exists\n\n");
         exit(1);
     }
