@@ -301,7 +301,7 @@ bolt_worker_process(void *arg)
         }
 
         /* 2) Not Found */
-        if (!bolt_utils_file_exists(work->path)) {
+        if (!bolt_file_exists(work->path)) {
             http_code = 404;
             bolt_log(BOLT_LOG_DEBUG,
                      "Request file was not found `%s'", work->path);

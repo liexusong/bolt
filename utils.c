@@ -27,7 +27,7 @@
 
 
 int
-bolt_utils_file_exists(char *path)
+bolt_file_exists(char *path)
 {
    return access((const char *)path, F_OK) == 0; 
 }

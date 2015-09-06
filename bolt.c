@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
     bolt_parse_options(argc, argv);
 
     if (setting->path == NULL
-        || !bolt_utils_file_exists(setting->path))
+        || !bolt_file_exists(setting->path))
     {
         fprintf(stderr, "Fatal: Image source path must be set by `path = xxx' configure item "
                         "and the path must be exists\n\n");
