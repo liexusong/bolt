@@ -206,7 +206,13 @@ int bolt_init_service()
 
 void bolt_usage()
 {
-    fprintf(stderr, "\nbolt usage:\n");
+    fprintf(stderr, "                                         \n"
+                    "       _/_/_/              _/    _/      \n" 
+                    "      _/    _/    _/_/    _/  _/_/_/_/   \n"
+                    "     _/_/_/    _/    _/  _/    _/        \n"
+                    "    _/    _/  _/    _/  _/    _/         \n"
+                    "   _/_/_/      _/_/    _/      _/_/      \n"
+                    "                                         \n");
     fprintf(stderr, "-----------------------------------------\n");
     fprintf(stderr, "  -c <path>   Configure file path to read\n");
     fprintf(stderr, "  -h          Display bolt's help\n\n");
