@@ -28,7 +28,7 @@
 #define  BOLT_LINE_SIZE  1024
 
 
-typedef int (bolt_conf_handler_t *)(char *, int);
+typedef int (*bolt_conf_handler_t)(char *, int);
 
 typedef struct {
     char *name;
@@ -37,7 +37,7 @@ typedef struct {
 
 
 static int bolt_conf_parse_host(char *value, int length);
-static int bolt_conf_parse_prot(char *value, int length);
+static int bolt_conf_parse_port(char *value, int length);
 static int bolt_conf_parse_workers(char *value, int length);
 static int bolt_conf_parse_logfile(char *value, int length);
 static int bolt_conf_parse_logmark(char *value, int length);
@@ -50,7 +50,7 @@ static int bolt_conf_parse_daemon(char *value, int length);
 
 static bolt_conf_item_t bolt_conf_imtes[] = {
     {"host",         bolt_conf_parse_host},
-    {"port",         bolt_conf_parse_prot},
+    {"port",         bolt_conf_parse_port},
     {"workers",      bolt_conf_parse_workers},
     {"logfile",      bolt_conf_parse_logfile},
     {"logmark",      bolt_conf_parse_logmark},
@@ -97,11 +97,16 @@ bolt_parse_conf(const char *start)
         case conf_want_name:
             if (*start == ' ' || *start == '\t') {
                 continue;
-            } else if (*start == '#') { /* skip comment */
+            } else if (*start == '#'
+                       || *start == '\n'
+                       || *start == '\r')
+            {
                 return 0;
             }
 
+            start -= 1; /* reback */
             state = conf_read_name;
+
             break;
 
         case conf_read_name:
@@ -130,6 +135,7 @@ bolt_parse_conf(const char *start)
             if (*start == ' ' || *start == '\t') {
                 continue;
             } else {
+                start -= 1; /* reback */
                 state = conf_read_value;
             }
 
@@ -205,7 +211,7 @@ bolt_conf_parse_port(char *value, int length)
 {
     int retval;
 
-    retval = bolt_atoi(value, length, &setting->port);
+    retval = bolt_atoi(value, length, (int *)&setting->port);
     if (retval == -1) {
         return -1;
     }
@@ -250,13 +256,13 @@ bolt_conf_parse_logfile(char *value, int length)
 static int
 bolt_conf_parse_logmark(char *value, int length)
 {
-    if (!strncmp(value, "DEBUG", length)) {
+    if (!strncasecmp(value, "DEBUG", length)) {
         setting->logmark = BOLT_LOG_DEBUG;
-    } else if (!strncmp(optarg, "NOTICE", length)) {
+    } else if (!strncasecmp(value, "NOTICE", length)) {
         setting->logmark = BOLT_LOG_NOTICE;
-    } else if (!strncmp(optarg, "ALERT", length)) {
+    } else if (!strncasecmp(value, "ALERT", length)) {
         setting->logmark = BOLT_LOG_ALERT;
-    } else if (!strncmp(optarg, "ERROR", length)) {
+    } else if (!strncasecmp(value, "ERROR", length)) {
         setting->logmark = BOLT_LOG_ERROR;
     } else {
         return -1;
@@ -338,9 +344,9 @@ bolt_conf_parse_watermark(char *value, int length)
 static int
 bolt_conf_parse_daemon(char *value, int length)
 {
-    if (!strncasecmp(value, "yes", length)
+    if (!strncasecmp(value, "YES", length)
         || !strncasecmp(value, "1", length)
-        || !strncasecmp(value, "on", length))
+        || !strncasecmp(value, "ON", length))
     {
         setting->daemon = 1;
     } else {
