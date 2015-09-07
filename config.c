@@ -275,11 +275,33 @@ static int
 bolt_conf_parse_maxcache(char *value, int length)
 {
     int retval;
+    int result;
+    int unit = 1;
 
-    retval = bolt_atoi(value, length, &setting->max_cache);
+    switch (value[length-1]) {
+    case 'G':
+    case 'g':
+        unit = 1024 * 1024 * 1024;
+        length--;
+        break;
+    case 'M':
+    case 'm':
+        unit = 1024 * 1024;
+        length--;
+        break;
+    case 'K':
+    case 'k':
+        unit = 1024;
+        length--;
+        break;
+    }
+
+    retval = bolt_atoi(value, length, &result);
     if (retval == -1) {
         return -1;
     }
+
+    setting->max_cache = result * unit;
 
     if (setting->max_cache < BOLT_MIN_CACHE_SIZE) {
         setting->max_cache = BOLT_MIN_CACHE_SIZE;

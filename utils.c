@@ -112,3 +112,4 @@ bolt_atoi(char *start, int length, int *retval)
 
 #undef  BOLT_DIGIT_CHAR
 }
+
