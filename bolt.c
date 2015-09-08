@@ -151,7 +151,10 @@ bolt_clock_handler(int sock, short event, void *arg)
 
             cache = list_entry(e, bolt_cache_t, link);
 
-            /* This cache be connection using */
+            /* Two conditions would be true
+             * 1) refcount > 0
+             * 2) last visited time in 1 hour
+             */
             if (cache->refcount > 0 &&
                 cache->last + 3600 > service->current_time)
             {
