@@ -272,7 +272,6 @@ bolt_worker_process(void *arg)
     bolt_wait_queue_t *waitq;
     int                wakeup;
     bolt_connection_t *c;
-    int                start_gc = 0;
     int                http_code;
     int                retval;
 
@@ -340,16 +339,9 @@ bolt_worker_process(void *arg)
                                 (void *)cache, 0);
 
         if (retval == JK_HASH_OK) {
-
-            /* Link to LRU */
-            list_add_tail(&cache->link, &service->gc_lru);
-
+            list_add_tail(&cache->link, &service->gc_lru); /* Link to LRU */
             http_code = 200;
-
-            service->total_mem_used += size;
-            if (service->total_mem_used > setting->max_cache) {
-                start_gc = 1;
-            }
+            service->memory_usage += size;
 
         } else {
             free(cache->cache);
@@ -390,10 +382,6 @@ bolt_worker_process(void *arg)
             pthread_mutex_unlock(&service->wakeup_lock);
 
             write(service->wakeup_notify[1], "\0", 1);
-        }
-
-        if (start_gc) { /* Need GC */
-            bolt_gc_start();
         }
 
         if (task)

@@ -77,8 +77,11 @@ typedef struct {
     int wakeup_notify[2];
     struct event wakeup_event;
 
+    time_t current_time;
+    struct event clock_event;
+
     int connections;
-    int total_mem_used;
+    int memory_usage;
 } bolt_service_t;
 
 

@@ -120,6 +120,64 @@ bolt_wakeup_handler(int sock, short event, void *arg)
 }
 
 
+void
+bolt_clock_handler(int sock, short event, void *arg)
+{
+    struct timeval tv = {.tv_sec = 1, .tv_usec = 0};
+    static int clock_init = 0;
+
+    if (clock_init) {
+        evtimer_del(&service->clock_event);
+    } else {
+        clock_init = true;
+    }
+
+    evtimer_set(&service->clock_event, bolt_clock_handler, 0);
+    event_base_set(service->ebase, &service->clock_event);
+    evtimer_add(&service->clock_event, &tv);
+
+    /* Update current time */
+    service->current_time = time(NULL);
+
+    if (service->memory_usage > service->max_cache) {
+        int freesize;
+        struct list_head *e, *n;
+        bolt_cache_t *cache;
+
+        pthread_mutex_lock(&service->cache_lock);
+
+        list_for_each_safe(e, n, &service->gc_lru) {
+
+            cache = list_entry(e, bolt_cache_t, link);
+            if (cache->refcount > 0) { /* This cache be connection using */
+                continue;
+            }
+
+            list_del(e); /* Remove from GC LRU queue */
+
+            /* Remove from cache hashtable */
+            jk_hash_remove(service->cache_htb,
+                           cache->filename, cache->fnlen);
+
+            service->memory_usage -= cache->size;
+            freesize -= cache->size;
+
+            free(cache->cache);
+            free(cache);
+
+            if (freesize <= 0) {
+                break;
+            }
+        }
+
+        pthread_mutex_unlock(&service->cache_lock);
+    }
+
+    blog_log(BOLT_LOG_DEBUG,
+            "Server used %d bytes memory space", service->memory_usage);
+}
+
+
 int bolt_init_service()
 {
     /* Init cache lock and task lock */
@@ -198,7 +256,7 @@ int bolt_init_service()
     }
 
     service->connections = 0;
-    service->total_mem_used = 0;
+    service->memory_usage = 0;
 
     return 0;
 }
@@ -273,12 +331,12 @@ int main(int argc, char *argv[])
     if (bolt_init_log(setting->logfile, setting->logmark) == -1
         || bolt_init_service() == -1
         || bolt_init_connections() == -1
-        || bolt_init_workers(setting->workers) == -1
-        || bolt_init_gc() == -1)
+        || bolt_init_workers(setting->workers) == -1)
     {
         exit(1);
     }
 
+    bolt_clock_handler(0, 0, 0);
     event_base_dispatch(service->ebase); /* RUNNING */
 
     bolt_destroy_log();
