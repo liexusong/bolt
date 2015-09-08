@@ -173,7 +173,7 @@ bolt_clock_handler(int sock, short event, void *arg)
         pthread_mutex_unlock(&service->cache_lock);
     }
 
-    blog_log(BOLT_LOG_DEBUG,
+    bolt_log(BOLT_LOG_DEBUG,
             "Server used %d bytes memory space", service->memory_usage);
 }
 
