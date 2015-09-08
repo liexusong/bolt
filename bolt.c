@@ -129,7 +129,7 @@ bolt_clock_handler(int sock, short event, void *arg)
     if (clock_init) {
         evtimer_del(&service->clock_event);
     } else {
-        clock_init = true;
+        clock_init = 1;
     }
 
     evtimer_set(&service->clock_event, bolt_clock_handler, 0);
@@ -139,7 +139,7 @@ bolt_clock_handler(int sock, short event, void *arg)
     /* Update current time */
     service->current_time = time(NULL);
 
-    if (service->memory_usage > service->max_cache) {
+    if (service->memory_usage > setting->max_cache) {
         int freesize;
         struct list_head *e, *n;
         bolt_cache_t *cache;
