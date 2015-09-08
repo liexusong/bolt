@@ -125,7 +125,7 @@ void
 bolt_clock_handler(int sock, short event, void *arg)
 {
     struct timeval tv = {.tv_sec = 1, .tv_usec = 0};
-    static int clock_init = 0, clock_calls = 0;
+    static int clock_init = 0, clock_calls = 0, gc_run = 0;
 
     if (clock_init) {
         evtimer_del(&service->clock_event);
@@ -176,11 +176,14 @@ bolt_clock_handler(int sock, short event, void *arg)
         }
 
         pthread_mutex_unlock(&service->cache_lock);
+
+        gc_run++;
     }
 
     if (!(clock_calls++ % 60)) {
         bolt_log(BOLT_LOG_DEBUG,
-                "Server used %d bytes memory space", service->memory_usage);
+                "Server used %d bytes memory space, GC run %d times",
+                service->memory_usage, gc_run);
     }
 }
 
