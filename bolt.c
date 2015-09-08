@@ -150,7 +150,11 @@ bolt_clock_handler(int sock, short event, void *arg)
         list_for_each_safe(e, n, &service->gc_lru) {
 
             cache = list_entry(e, bolt_cache_t, link);
-            if (cache->refcount > 0) { /* This cache be connection using */
+
+            /* This cache be connection using */
+            if (cache->refcount > 0 &&
+                cache->last + 3600 > service->current_time)
+            {
                 continue;
             }
 

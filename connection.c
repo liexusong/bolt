@@ -522,6 +522,7 @@ bolt_connection_process_request(bolt_connection_t *c)
             c->http_code = 200;
             c->icache = cache;
             cache->refcount++;
+            cache->last = service->current_time;
         }
 
         send = 1;

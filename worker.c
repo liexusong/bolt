@@ -324,7 +324,8 @@ bolt_worker_process(void *arg)
         cache->size = size;
         cache->cache = blob;
         cache->refcount = 0;
-        cache->time = time(NULL);
+        cache->time = service->current_time;
+        cache->last = service->current_time;
         cache->fnlen = task->fnlen;
 
         bolt_format_time(cache->datetime, cache->time);

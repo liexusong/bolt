@@ -91,6 +91,7 @@ typedef struct {
     int refcount;
     void *cache;
     time_t time;
+    time_t last;
     char datetime[BOLT_DATETIME_LENGTH];
     char filename[BOLT_FILENAME_LENGTH];
     int fnlen;
