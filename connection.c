@@ -101,16 +101,21 @@ bolt_connection_install_revent(bolt_connection_t *c,
     void (*handler)(int, short, void *))
 {
     if (!c->revset) {
+
         event_set(&c->revent, c->sock,
                   EV_READ|EV_PERSIST, handler, c);
+
         event_base_set(service->ebase, &c->revent);
+
         if (event_add(&c->revent, NULL) == -1) {
             bolt_log(BOLT_LOG_ERROR,
                      "Failed to install read event, socket(%d)", c->sock);
             return -1;
         }
+
         c->revset = 1;
     }
+
     return 0;
 }
 
@@ -120,16 +125,21 @@ bolt_connection_install_wevent(bolt_connection_t *c,
     void (*handler)(int, short, void *))
 {
     if (!c->wevset) {
+
         event_set(&c->wevent, c->sock,
                   EV_WRITE|EV_PERSIST, handler, c);
+
         event_base_set(service->ebase, &c->wevent);
+
         if (event_add(&c->wevent, NULL) == -1) {
             bolt_log(BOLT_LOG_ERROR,
                      "Failed to install write event, socket(%d)", c->sock);
             return -1;
         }
+
         c->wevset = 1;
     }
+
     return 0;
 }
 
@@ -190,6 +200,7 @@ bolt_create_connection(int sock)
     c->headers.tms = 0;
 
     http_parser_init(&c->hp, HTTP_REQUEST);
+
     c->hp.data = c;
 
     if (bolt_connection_install_revent(c,
@@ -234,6 +245,7 @@ bolt_connection_recv_completed(bolt_connection_t *c)
         last = *c->rlast;
 
         switch (c->recv_state) {
+
         case BOLT_HTTP_STATE_START:
             if (last == BOLT_CR) {
                 c->recv_state = BOLT_HTTP_STATE_CR;
@@ -269,11 +281,11 @@ bolt_connection_recv_completed(bolt_connection_t *c)
             break;
         }
 
-        c->rlast++;
-    }
+        if (c->recv_state == BOLT_HTTP_STATE_CRLFCRLF) {
+            return 0;
+        }
 
-    if (c->recv_state == BOLT_HTTP_STATE_CRLFCRLF) {
-        return 0;
+        c->rlast++;
     }
 
     return -1;
@@ -303,8 +315,7 @@ bolt_connection_keepalive(bolt_connection_t *c)
     c->hp.data = c;
 
     bolt_connection_remove_wevent(c);
-    bolt_connection_install_revent(c,
-                                   bolt_connection_recv_handler);
+    bolt_connection_install_revent(c, bolt_connection_recv_handler);
 }
 
 
@@ -315,6 +326,7 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
     int nbytes, remain, retval;
 
     if (!c || c->sock != sock) {
+        bolt_log(BOLT_LOG_ERROR, "Connection was broken, address `%p'", c);
         return;
     }
 
@@ -343,13 +355,14 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
     c->rpos += nbytes;
 
     if (bolt_connection_recv_completed(c) == 0) {
+
         retval = http_parser_execute(&c->hp, &http_parser_callbacks,
                                      c->rbuf, c->rlast - c->rbuf);
 
         if (c->hp.method != HTTP_GET) {
             bolt_free_connection(c);
             bolt_log(BOLT_LOG_ERROR,
-                     "Connection request method not `GET', socket(%d)",
+                     "Connection request method was not GET, socket(%d)",
                      c->sock);
             return;
         }
@@ -371,6 +384,7 @@ bolt_connection_send_handler(int sock, short event, void *arg)
     int nsend, nbytes;
 
     if (!c || c->sock != sock) {
+        bolt_log(BOLT_LOG_ERROR, "Connection was broken, address `%p'", c);
         return;
     }
 
@@ -392,7 +406,7 @@ bolt_connection_send_handler(int sock, short event, void *arg)
 
     c->wpos += nbytes;
 
-    if (c->wpos >= c->wend) {
+    if (c->wpos >= c->wend) { /* Finished sent data to client */
 
         if (c->send_state == BOLT_SEND_HEADER_STATE && !c->header_only) {
 
@@ -418,11 +432,11 @@ bolt_connection_send_handler(int sock, short event, void *arg)
                 c->wend = c->wpos + sizeof(bolt_error_500_page) - 1;
                 break;
             }
-            
+
             c->send_state = BOLT_SEND_CONTENT_STATE;
 
         } else {
-            if (c->keepalive) { /* keepalive? */
+            if (c->keepalive) { /* Do keepalive */
                 bolt_connection_keepalive(c);
             } else {
                 bolt_free_connection(c);
@@ -508,8 +522,10 @@ bolt_connection_process_request(bolt_connection_t *c)
 
     pthread_mutex_lock(&service->cache_lock);
 
-    if (jk_hash_find(service->cache_htb, c->filename,
-                     c->fnlen, (void **)&cache) == JK_HASH_OK)
+    if (jk_hash_find(service->cache_htb,
+                     c->filename,
+                     c->fnlen,
+                     (void **)&cache) == JK_HASH_OK)
     {
         /* Move cache to LRU tail */
         list_del(&cache->link);
@@ -528,8 +544,10 @@ bolt_connection_process_request(bolt_connection_t *c)
         send = 1;
 
     } else {
-        if (jk_hash_find(service->waiting_htb, c->filename,
-                         c->fnlen, (void **)&waitq) == JK_HASH_ERR)
+        if (jk_hash_find(service->waiting_htb,
+                         c->filename,
+                         c->fnlen,
+                         (void **)&waitq) == JK_HASH_ERR)
         {
             /* Free by bolt_wakeup_handler() */
 

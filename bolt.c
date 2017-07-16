@@ -251,7 +251,9 @@ int bolt_init_service()
     /* Add listen socket to libevent */
     event_set(&service->event, service->sock,
               EV_READ|EV_PERSIST, bolt_accept_handler, NULL);
+
     event_base_set(service->ebase, &service->event);
+
     if (event_add(&service->event, NULL) == -1) {
         bolt_log(BOLT_LOG_ERROR,
                  "Failed to add accept event to libevent");
@@ -261,7 +263,9 @@ int bolt_init_service()
     /* Add wakeup notify fd to libevent */
     event_set(&service->wakeup_event, service->wakeup_notify[0],
               EV_READ|EV_PERSIST, bolt_wakeup_handler, NULL);
+
     event_base_set(service->ebase, &service->wakeup_event);
+
     if (event_add(&service->wakeup_event, NULL) == -1) {
         bolt_log(BOLT_LOG_ERROR,
                  "Failed to add wakeup event to libevent");

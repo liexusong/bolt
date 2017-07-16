@@ -76,7 +76,7 @@ bolt_worker_get_job(bolt_task_t *task)
             if (ch == '.') {
                 int len = ptail - pcurr;
 
-                if (len > 0) {
+                if (len > 0 && len < 32) {
                     memcpy(ext, pcurr + 1, len);
                 } else {
                     return NULL;
@@ -163,7 +163,11 @@ bolt_worker_get_job(bolt_task_t *task)
     fnlen = ptail - start;
 
     /* File name format invalid or empty */
-    if (state != BOLT_PT_GET_FOUND || fnlen <= 0) {
+
+    if (state != BOLT_PT_GET_FOUND
+        || fnlen <= 0
+        || setting->path_len + fnlen + 1 > BOLT_FILENAME_LENGTH)
+    {
         return NULL;
     }
 

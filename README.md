@@ -26,7 +26,7 @@ $ make
 
 使用方式
 --------
-访问URL：http://your-host/filename_(width)x(height)_(quality).jpg
+访问URL：http://your-host/filename.jpg-(width)x(height)_(quality).(ext)
 
 Bolt配置文件
 --------------
