@@ -146,7 +146,6 @@ bolt_worker_get_job(bolt_task_t *task)
                 }
 
                 state = BOLT_PT_GET_FOUND;
-                ptail = pcurr - 1;
             }
 
             break;
@@ -160,7 +159,7 @@ bolt_worker_get_job(bolt_task_t *task)
         }
     }
 
-    fnlen = ptail - start;
+    fnlen = pcurr - start;
 
     /* File name format invalid or empty */
 
@@ -192,6 +191,11 @@ bolt_worker_get_job(bolt_task_t *task)
 
     last += fnlen;
     memcpy(job->path + last, "\0", 1);
+
+    bolt_log(BOLT_LOG_DEBUG,
+             "Job's width: `%d', height: `%d', "
+             "quality: `%d', extension: `%s', filename: `%s'",
+             width, height, quality, ext, job->path);
 
     return job;
 }
