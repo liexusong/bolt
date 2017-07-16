@@ -67,6 +67,8 @@ bolt_accept_handler(int sock, short event, void *arg)
             return;
         }
 
+        bolt_log(BOLT_LOG_DEBUG, "Accept client connection fd `%d'", nsock);
+
         if (bolt_set_nonblock(nsock) == -1) {
             close(nsock);
             bolt_log(BOLT_LOG_ERROR,
@@ -331,9 +333,7 @@ int main(int argc, char *argv[])
     if (setting->path == NULL
         || !bolt_file_exists(setting->path))
     {
-        fprintf(stderr, "Fatal: Image source path must be set "
-                        "by `path = xxx' configure entry "
-                        "and the path must be exists\n\n");
+        fprintf(stderr, "Fatal: Image source path must be set and exists\n\n");
         exit(1);
     }
 
@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
     }
 
     bolt_clock_handler(0, 0, 0);
-    event_base_dispatch(service->ebase); /* RUNNING */
+    event_base_dispatch(service->ebase); /* Running */
 
     bolt_destroy_log();
 

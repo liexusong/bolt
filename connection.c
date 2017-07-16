@@ -330,6 +330,8 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
         return;
     }
 
+    bolt_log(BOLT_LOG_DEBUG, "Start receive data from connection `%d'", sock);
+
     remain = c->rend - c->rpos;
     if (remain <= 0) {
         bolt_free_connection(c);
@@ -352,9 +354,14 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
         return;
     }
 
+    bolt_log(BOLT_LOG_DEBUG,
+             "Received `%d' bytes from connection `%d'", nbytes, sock);
+
     c->rpos += nbytes;
 
     if (bolt_connection_recv_completed(c) == 0) {
+
+        bolt_log(BOLT_LOG_DEBUG, "Start parse client request `%d'", sock);
 
         retval = http_parser_execute(&c->hp, &http_parser_callbacks,
                                      c->rbuf, c->rlast - c->rbuf);
@@ -502,8 +509,7 @@ bolt_connection_begin_send(bolt_connection_t *c)
     c->wend = c->wbuf + nsend;
     c->send_state = BOLT_SEND_HEADER_STATE;
 
-    bolt_connection_install_wevent(c,
-                                   bolt_connection_send_handler);
+    bolt_connection_install_wevent(c, bolt_connection_send_handler);
 }
 
 
@@ -543,6 +549,8 @@ bolt_connection_process_request(bolt_connection_t *c)
 
         send = 1;
 
+        bolt_log(BOLT_LOG_DEBUG, "Found image `%s' from cache", c->filename);
+
     } else {
         if (jk_hash_find(service->waiting_htb,
                          c->filename,
@@ -568,6 +576,9 @@ bolt_connection_process_request(bolt_connection_t *c)
         }
 
         list_add(&c->link, &waitq->wait_conns);
+
+        bolt_log(BOLT_LOG_DEBUG,
+                 "Not found image `%s' from cache", c->filename);
     }
 
     pthread_mutex_unlock(&service->cache_lock);
