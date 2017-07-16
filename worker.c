@@ -26,26 +26,24 @@
 #include "utils.h"
 #include "time.h"
 
-
 typedef struct {
-    int width;
-    int height;
-    int quality;
+    int  width;
+    int  height;
+    int  quality;
+    char change_ext[32];
     char path[BOLT_FILENAME_LENGTH];
 } bolt_compress_t;
 
-
 static MagickWand *bolt_watermark_wand = NULL;
 static int bolt_watermark_width,
-           bolt_watermark_height;
-
+static int bolt_watermark_height;
 
 /**
- * Parse task to compress work
- * like: "ooooooooo_00x00_00.jpg"
+ * Parse task to compress job
+ * like: "ooooooooo.jpg-00x00_00.webp"
  */
 bolt_compress_t *
-bolt_worker_parse_task(bolt_task_t *task)
+bolt_worker_get_job(bolt_task_t *task)
 {
     enum {
         BOLT_PT_GET_EXT = 0,
@@ -56,37 +54,104 @@ bolt_worker_parse_task(bolt_task_t *task)
     } state = BOLT_PT_GET_EXT;
 
     char *start = task->filename;
-    char *end = task->filename + task->fnlen - 1;
-    char *offset = end;
-    char *format;
-    char buffer[32];
-    int pos = 0, last;
+    char *ptail = task->filename + task->fnlen - 1;
+    char *pcurr;
+    char buf[32], ext[32] = {0};
+    int last;
     char ch;
-    int width, height, quality;
+    int width = 0, height = 0, quality = 0;
     int fnlen;
-    bolt_compress_t *work;
+    bolt_compress_t *job;
     char *path;
     int plen;
 
-    for (; offset >= start; offset--) {
-        ch = *offset;
+    for (pcurr = ptail; pcurr >= start; pcurr--) {
+
+        ch = *pcurr;
 
         switch (state) {
+
         case BOLT_PT_GET_EXT:
-            if (ch == '.')
+
+            if (ch == '.') {
+                int len = ptail - pcurr;
+
+                if (len > 0) {
+                    memcpy(ext, pcurr + 1, len);
+                } else {
+                    return NULL;
+                }
+
                 state = BOLT_PT_GET_QUALITY;
+                ptail = pcurr - 1;
+            }
+
             break;
+
         case BOLT_PT_GET_QUALITY:
-            if (ch == '_')
+
+            if (ch == '_') {
+                int len = ptail - pcurr;
+
+                if (len > 0) {
+                    memcpy(buf, pcurr + 1, len);
+                    buf[len] = 0;
+                    quality = atoi(buf);
+                }
+
+                if (quality <= 0) {
+                    return NULL;
+                }
+
                 state = BOLT_PT_GET_HEIGHT;
+                ptail = pcurr - 1;
+            }
+
             break;
+
         case BOLT_PT_GET_HEIGHT:
-            if (ch == 'x')
+
+            if (ch == 'x') {
+                int len = ptail - pcurr;
+
+                if (len > 0) {
+                    memcpy(buf, pcurr + 1, len);
+                    buf[len] = 0;
+                    height = atoi(buf);
+                }
+
+                if (height <= 0) {
+                    return NULL;
+                }
+
                 state = BOLT_PT_GET_WIDTH;
+                ptail = pcurr - 1;
+            }
+
             break;
+
         case BOLT_PT_GET_WIDTH:
-            if (ch == '_')
+
+            if (ch == '-') {
+                int len = ptail - pcurr;
+
+                if (len > 0) {
+                    memcpy(buf, pcurr + 1, len);
+                    buf[len] = 0;
+                    width = atoi(buf);
+                }
+
+                if (width <= 0) {
+                    return NULL;
+                }
+
                 state = BOLT_PT_GET_FOUND;
+                ptail = pcurr - 1;
+            }
+
+            break;
+
+        default:
             break;
         }
 
@@ -95,87 +160,41 @@ bolt_worker_parse_task(bolt_task_t *task)
         }
     }
 
-    fnlen = offset - start;
+    fnlen = ptail - start;
 
+    /* File name format invalid or empty */
     if (state != BOLT_PT_GET_FOUND || fnlen <= 0) {
         return NULL;
     }
 
-    pos = 0;
-    state = BOLT_PT_GET_WIDTH;
-
-    for (format = offset + 1; format <= end; format++) {
-        ch = *format;
-
-        switch (state) {
-        case BOLT_PT_GET_WIDTH:
-            if (ch == 'x') {
-                buffer[pos] = 0; pos = 0;
-                width = atoi(buffer);
-                state = BOLT_PT_GET_HEIGHT;
-                continue;
-            }
-            break;
-
-        case BOLT_PT_GET_HEIGHT:
-            if (ch == '_') {
-                buffer[pos] = 0; pos = 0;
-                height = atoi(buffer);
-                state = BOLT_PT_GET_QUALITY;
-                continue;
-            }
-            break;
-
-        case BOLT_PT_GET_QUALITY:
-            if (ch == '.') {
-                buffer[pos] = 0; pos = 0;
-                quality = atoi(buffer);
-                state = BOLT_PT_GET_EXT;
-                continue;
-            }
-            break;
-
-        case BOLT_PT_GET_EXT:
-            break;
-        }
-
-        buffer[pos++] = ch;
-    }
-
-    if (state != BOLT_PT_GET_EXT
-        || pos <= 0
-        || width == 0
-        || height == 0
-        || quality == 0)
-    {
+    job = malloc(sizeof(*job));
+    if (job == NULL) {
         return NULL;
     }
 
-    work = malloc(sizeof(*work));
-    if (work == NULL) {
-        return NULL;
-    }
+    job->width   = width;
+    job->height  = height;
+    job->quality = quality;
 
-    work->width = width;
-    work->height = height;
-    work->quality = quality;
+    strcpy(job->change_ext, ext); /* Copy changing extension name */
 
     path = setting->path;
     plen = setting->path_len;
 
-    last = 0;       memcpy(work->path + last, path, plen);
-    last += plen;   memcpy(work->path + last, start, fnlen);
-    last += fnlen;  memcpy(work->path + last, ".", 1);
-    last += 1;      memcpy(work->path + last, buffer, pos);
-    last += pos;    memcpy(work->path + last, "\0", 1);
+    memcpy(job->path, path, plen);
 
-    return work;
+    last += plen;
+    memcpy(job->path + last, start, fnlen);
+
+    last += fnlen;
+    memcpy(job->path + last, "\0", 1);
+
+    return job;
 }
 
-
 char *
-bolt_worker_compress(char *path, int quality,
-    int width, int height, int *length)
+bolt_worker_compress(char *path,
+    int quality, int width, int height, int *length)
 {
     MagickWand *wand = NULL;
     int orig_width, orig_height;
@@ -191,7 +210,7 @@ bolt_worker_compress(char *path, int quality,
         goto failed;
     }
 
-    orig_width = MagickGetImageWidth(wand);
+    orig_width  = MagickGetImageWidth(wand);
     orig_height = MagickGetImageHeight(wand);
 
     if (setting->watermark_enable) { /* Watermark process */
@@ -200,13 +219,15 @@ bolt_worker_compress(char *path, int quality,
         if (orig_width > bolt_watermark_width + BOLT_WATERMARK_PADDING
             && orig_height > bolt_watermark_height + BOLT_WATERMARK_PADDING)
         {
+            int ret;
+
             wm_x = orig_width - bolt_watermark_width - BOLT_WATERMARK_PADDING;
             wm_y = orig_height - bolt_watermark_height - BOLT_WATERMARK_PADDING;
 
-            if (MagickCompositeImage(wand, bolt_watermark_wand,
-                                     MagickGetImageCompose(bolt_watermark_wand),
-                                     wm_x, wm_y) == MagickFalse)
-            {
+            ret = MagickCompositeImage(wand, bolt_watermark_wand,
+                      MagickGetImageCompose(bolt_watermark_wand), wm_x, wm_y);
+
+            if (ret == MagickFalse) {
                 bolt_log(BOLT_LOG_ERROR, "Failed to add water mark to image");
             }
         }
@@ -253,12 +274,10 @@ bolt_worker_compress(char *path, int quality,
 
 failed:
 
-    if (wand)
-        DestroyMagickWand(wand);
+    if (wand) DestroyMagickWand(wand);
 
     return NULL;
 }
-
 
 void *
 bolt_worker_process(void *arg)
@@ -286,13 +305,16 @@ bolt_worker_process(void *arg)
         }
 
         e = service->task_queue.next;
+
         task = list_entry(e, bolt_task_t, link);
+
         list_del(e);
 
         pthread_mutex_unlock(&service->task_lock);
 
         /* 1) Bad Request */
-        if ((work = bolt_worker_parse_task(task)) == NULL) {
+
+        if ((work = bolt_worker_get_job(task)) == NULL) {
             http_code = 400;
             bolt_log(BOLT_LOG_DEBUG,
                      "Request file format was invaild `%s'", task->filename);
@@ -300,6 +322,7 @@ bolt_worker_process(void *arg)
         }
 
         /* 2) Not Found */
+
         if (!bolt_file_exists(work->path)) {
             http_code = 404;
             bolt_log(BOLT_LOG_DEBUG,
@@ -308,16 +331,22 @@ bolt_worker_process(void *arg)
         }
 
         /* 3) Internal Server Error */
-        blob = bolt_worker_compress(work->path, work->quality,
-                                    work->width, work->height, &size);
-        if (NULL == blob
-            || NULL == (cache = malloc(sizeof(*cache))))
-        {
-            if (blob)
-                free(blob);
+
+        blob = bolt_worker_compress(work->path,
+                                    work->quality,
+                                    work->width,
+                                    work->height,
+                                    &size);
+
+        if (NULL == blob || NULL == (cache = malloc(sizeof(*cache)))) {
+
+            if (blob) free(blob);
+
             http_code = 500;
+
             bolt_log(BOLT_LOG_DEBUG,
                      "Failed to compress file `%s'", task->filename);
+
             goto fatal;
         }
 
@@ -329,6 +358,7 @@ bolt_worker_process(void *arg)
         cache->fnlen = task->fnlen;
 
         bolt_format_time(cache->datetime, cache->time);
+
         memcpy(cache->filename, task->filename, cache->fnlen);
 
         /* Lock cache here */
@@ -336,11 +366,13 @@ bolt_worker_process(void *arg)
         pthread_mutex_lock(&service->cache_lock);
 
         retval = jk_hash_insert(service->cache_htb,
-                                task->filename, task->fnlen,
-                                (void *)cache, 0);
+                                task->filename,
+                                task->fnlen,
+                                (void *)cache,
+                                0);
 
         if (retval == JK_HASH_OK) {
-            list_add_tail(&cache->link, &service->gc_lru); /* Link to LRU */
+            list_add_tail(&cache->link, &service->gc_lru); /* Add LRU list */
             http_code = 200;
             service->memory_usage += size;
 
@@ -354,7 +386,8 @@ bolt_worker_process(void *arg)
         }
 
         retval = jk_hash_find(service->waiting_htb,
-                              task->filename, task->fnlen,
+                              task->filename,
+                              task->fnlen,
                               (void **)&waitq);
 
         if (retval == JK_HASH_OK) { /* Found waiting queue */
@@ -385,10 +418,8 @@ bolt_worker_process(void *arg)
             write(service->wakeup_notify[1], "\0", 1);
         }
 
-        if (task)
-            free(task);
-        if (work)
-            free(work);
+        if (task) free(task);
+        if (work) free(work);
 
         continue;
 
@@ -396,7 +427,8 @@ fatal:
         pthread_mutex_lock(&service->cache_lock);
 
         if (jk_hash_find(service->waiting_htb,
-                         task->filename, task->fnlen,
+                         task->filename,
+                         task->fnlen,
                          (void **)&waitq) == JK_HASH_OK)
         {
             jk_hash_remove(service->waiting_htb,
@@ -419,23 +451,19 @@ fatal:
             write(service->wakeup_notify[1], "\0", 1);
         }
 
-        if (task)
-            free(task);
-        if (work)
-            free(work);
+        if (task) free(task);
+        if (work) free(work);
     }
 }
-
 
 int
 bolt_worker_pass_task(bolt_connection_t *c)
 {
     bolt_task_t *task;
 
-    task = malloc(sizeof(*task));
+    task = (bolt_task_t *)malloc(sizeof(*task));
     if (NULL == task) {
-        bolt_log(BOLT_LOG_ERROR,
-                 "Not enough memory to alloc task");
+        bolt_log(BOLT_LOG_ERROR, "Not enough memory to alloc task struct");
         return -1;
     }
 
@@ -449,7 +477,6 @@ bolt_worker_pass_task(bolt_connection_t *c)
 
     return 0;
 }
-
 
 int
 bolt_init_workers(int num)
@@ -484,15 +511,11 @@ bolt_init_workers(int num)
     }
 
     for (cnt = 0; cnt < num; cnt++) {
-        if (pthread_create(&tid, NULL,
-                           bolt_worker_process, NULL) == -1)
-        {
-            bolt_log(BOLT_LOG_ERROR,
-                     "Failed to create worker thread");
+        if (pthread_create(&tid, NULL, bolt_worker_process, NULL) == -1) {
+            bolt_log(BOLT_LOG_ERROR, "Failed to create worker thread");
             return -1;
         }
     }
 
     return 0;
 }
-

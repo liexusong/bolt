@@ -278,7 +278,7 @@ int bolt_init_service()
 void bolt_usage()
 {
     fprintf(stderr, "                                         \n"
-                    "       _/_/_/              _/    _/      \n" 
+                    "       _/_/_/              _/    _/      \n"
                     "      _/    _/    _/_/    _/  _/_/_/_/   \n"
                     "     _/_/_/    _/    _/  _/    _/        \n"
                     "    _/    _/  _/    _/  _/    _/         \n"
@@ -327,7 +327,8 @@ int main(int argc, char *argv[])
     if (setting->path == NULL
         || !bolt_file_exists(setting->path))
     {
-        fprintf(stderr, "Fatal: Image source path must be set by `path = xxx' configure item "
+        fprintf(stderr, "Fatal: Image source path must be set "
+                        "by `path = xxx' configure entry "
                         "and the path must be exists\n\n");
         exit(1);
     }
