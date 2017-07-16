@@ -190,7 +190,7 @@ bolt_worker_get_job(bolt_task_t *task)
     memcpy(job->path + last, start, fnlen);
 
     last += fnlen;
-    memcpy(job->path + last, "\0", 1);
+    memcpy(job->path + last, ".jpg\0", 5);
 
     bolt_log(BOLT_LOG_DEBUG,
              "Job's width: `%d', height: `%d', "
