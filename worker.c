@@ -254,9 +254,7 @@ bolt_worker_compress(char *path,
         width = (float)height * ((float)orig_width / (float)orig_height);
     }
 
-    if (MagickResizeImage(wand, width, height, CatromFilter, 1)
-        == MagickFalse)
-    {
+    if (MagickResizeImage(wand, width, height, CatromFilter) == MagickFalse) {
         goto failed;
     }
 
