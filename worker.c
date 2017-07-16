@@ -267,7 +267,7 @@ bolt_worker_compress(char *path,
         goto failed;
     }
 
-    if ((blob = MagickWriteImageBlob(wand, length)) == NULL) {
+    if ((blob = MagickGetImageBlob(wand, length)) == NULL) {
         goto failed;
     }
 
