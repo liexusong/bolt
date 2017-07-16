@@ -229,7 +229,8 @@ bolt_worker_compress(char *path,
             wm_y = orig_height - bolt_watermark_height - BOLT_WATERMARK_PADDING;
 
             ret = MagickCompositeImage(wand, bolt_watermark_wand,
-                      MagickGetImageCompose(bolt_watermark_wand), wm_x, wm_y);
+                    MagickGetImageCompose(bolt_watermark_wand),
+                    MagickFalse, wm_x, wm_y);
 
             if (ret == MagickFalse) {
                 bolt_log(BOLT_LOG_ERROR, "Failed to add water mark to image");
