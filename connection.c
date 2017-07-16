@@ -627,6 +627,8 @@ bolt_connection_http_parse_url(struct http_parser *p,
     memcpy(c->filename, "/", 1);
     memcpy(c->filename + 1, start, len);
 
+    c->filename[len+1] = 0;
+
     c->fnlen = len + 1;
 
     return 0;
