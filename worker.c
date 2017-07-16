@@ -35,7 +35,7 @@ typedef struct {
 } bolt_compress_t;
 
 static MagickWand *bolt_watermark_wand = NULL;
-static int bolt_watermark_width,
+static int bolt_watermark_width;
 static int bolt_watermark_height;
 
 /**
