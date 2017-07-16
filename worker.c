@@ -21,7 +21,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <wand/magick_wand.h>
+#include <MagickWand/MagickWand.h>
 #include "bolt.h"
 #include "utils.h"
 #include "time.h"
