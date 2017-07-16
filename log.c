@@ -52,6 +52,7 @@ bolt_init_log(char *file, int mark)
     if (file) {
         bolt_log_fp = fopen(file, "a+");
         if (!bolt_log_fp) {
+            fprintf(stderr, "Fatal: Failed to create log file `%s'\n", file);
             return -1;
         }
 

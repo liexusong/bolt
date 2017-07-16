@@ -351,7 +351,7 @@ int main(int argc, char *argv[])
         || bolt_init_connections() == -1
         || bolt_init_workers(setting->workers) == -1)
     {
-        fprintf(stderr, "Failed to initialize bolt environment\n");
+        fprintf(stderr, "Fatal: Failed to initialize bolt environment\n");
         exit(1);
     }
 
