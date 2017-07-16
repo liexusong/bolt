@@ -57,7 +57,7 @@ bolt_worker_get_job(bolt_task_t *task)
     char *ptail = task->filename + task->fnlen - 1;
     char *pcurr;
     char buf[32], ext[32] = {0};
-    int last;
+    int last = 0;
     char ch;
     int width = 0, height = 0, quality = 0;
     int fnlen;
