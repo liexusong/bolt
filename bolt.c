@@ -145,7 +145,7 @@ bolt_clock_handler(int sock, short event, void *arg)
         bolt_cache_t *cache;
 
         freesize = service->memory_usage
-                   - (setting->max_cache * setting.gc_threshold / 100);
+                   - (setting->max_cache * setting->gc_threshold / 100);
 
         pthread_mutex_lock(&service->cache_lock);
 

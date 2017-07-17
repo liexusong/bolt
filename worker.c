@@ -205,7 +205,7 @@ int bolt_format_support(char *format)
     char **fmt = support_formats;
 
     for (; *fmt; fmt++) {
-        if (!strcmp(format, fmt)) {
+        if (!strcmp(format, *fmt)) {
             return 0;
         }
     }
