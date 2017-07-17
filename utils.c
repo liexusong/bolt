@@ -108,3 +108,27 @@ bolt_atoi(char *start, int length, int *retval)
 
 #undef  BOLT_DIGIT_CHAR
 }
+
+void
+bolt_strtolower(char *str, int length)
+{
+    int i;
+
+    for (i = 0; i < length; i++) {
+        if (str[i] >= 'A' && str[i] <= 'Z') {
+            str[i] = str[i] + ('a' - 'A');
+        }
+    }
+}
+
+void
+bolt_strtoupper(char *str, int length)
+{
+    int i;
+
+    for (i = 0; i < length; i++) {
+        if (str[i] >= 'a' && str[i] <= 'z') {
+            str[i] = str[i] - ('a' - 'A');
+        }
+    }
+}

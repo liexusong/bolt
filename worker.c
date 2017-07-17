@@ -30,13 +30,17 @@ typedef struct {
     int  width;
     int  height;
     int  quality;
-    char change_ext[32];
+    char format[32];
     char path[BOLT_FILENAME_LENGTH];
 } bolt_compress_t;
 
 static MagickWand *bolt_watermark_wand = NULL;
 static int bolt_watermark_width;
 static int bolt_watermark_height;
+
+static char *support_formats[] = {
+    "PNG", "JPG", "WEBP", NULL,
+};
 
 /**
  * Parse task to compress job
@@ -56,7 +60,7 @@ bolt_worker_get_job(bolt_task_t *task)
     char *start = task->filename;
     char *ptail = task->filename + task->fnlen - 1;
     char *pcurr;
-    char buf[32], ext[32] = {0};
+    char buf[32], format[32] = {0};
     int last = 0;
     char ch;
     int width = 0, height = 0, quality = 0;
@@ -77,7 +81,8 @@ bolt_worker_get_job(bolt_task_t *task)
                 int len = ptail - pcurr;
 
                 if (len > 0 && len < 32) {
-                    memcpy(ext, pcurr + 1, len);
+                    memcpy(format, pcurr + 1, len);
+                    bolt_strtoupper(format, len);
                 } else {
                     return NULL;
                 }
@@ -179,7 +184,7 @@ bolt_worker_get_job(bolt_task_t *task)
     job->height  = height;
     job->quality = quality;
 
-    strcpy(job->change_ext, ext); /* Copy changing extension name */
+    strcpy(job->format, format); /* Copy changing extension name */
 
     path = setting->path;
     plen = setting->path_len;
@@ -195,9 +200,22 @@ bolt_worker_get_job(bolt_task_t *task)
     return job;
 }
 
+int bolt_format_support(char *format)
+{
+    char **fmt = support_formats;
+
+    for (; *fmt; fmt++) {
+        if (!strcmp(format, fmt)) {
+            return 0;
+        }
+    }
+    return -1;
+}
+
 char *
-bolt_worker_compress(char *path,
-    int quality, int width, int height, int *length)
+bolt_worker_compress(
+    char *path, int quality, int width,
+    int height, char *format, int *length)
 {
     MagickWand *wand = NULL;
     int orig_width, orig_height;
@@ -206,10 +224,12 @@ bolt_worker_compress(char *path,
 
     wand = NewMagickWand();
     if (!wand) {
+        bolt_log(BOLT_LOG_ERROR, "Failed to create Magick object");
         goto failed;
     }
 
     if (MagickReadImage(wand, path) == MagickFalse) {
+        bolt_log(BOLT_LOG_ERROR, "Failed to read image from `%s'", path);
         goto failed;
     }
 
@@ -232,7 +252,8 @@ bolt_worker_compress(char *path,
                     MagickFalse, wm_x, wm_y);
 
             if (ret == MagickFalse) {
-                bolt_log(BOLT_LOG_ERROR, "Failed to add water mark to image");
+                bolt_log(BOLT_LOG_ERROR,
+                         "Failed to add water mark to image `%s'", path);
             }
         }
     }
@@ -255,10 +276,7 @@ bolt_worker_compress(char *path,
     }
 
     if (MagickResizeImage(wand, width, height, CatromFilter) == MagickFalse) {
-        goto failed;
-    }
-
-    if (MagickSetImageCompression(wand, JPEGCompression) == MagickFalse) {
+        bolt_log(BOLT_LOG_ERROR, "Failed to resize image `%s'", path);
         goto failed;
     }
 
@@ -266,7 +284,26 @@ bolt_worker_compress(char *path,
         goto failed;
     }
 
+    if (bolt_format_support(format) == -1) {
+        if (MagickSetImageFormat(wand, "jpg") == MagickFalse) {
+            bolt_log(BOLT_LOG_ERROR,
+                     "Failed to set image to JPG format `%s'", path);
+            goto failed;
+        }
+    } else {
+        if (MagickSetImageFormat(wand, format) == MagickFalse) {
+            bolt_log(BOLT_LOG_ERROR,
+                     "Failed to set image to %s format `%s'", format, path);
+            goto failed;
+        }
+    }
+
+    // if (MagickSetImageCompression(wand, JPEGCompression) == MagickFalse) {
+    //     goto failed;
+    // }
+
     if ((blob = MagickGetImageBlob(wand, length)) == NULL) {
+        bolt_log(BOLT_LOG_ERROR, "Failed to read image blob `%s'", path);
         goto failed;
     }
 
@@ -338,6 +375,7 @@ bolt_worker_process(void *arg)
                                     work->quality,
                                     work->width,
                                     work->height,
+                                    work->format,
                                     &size);
 
         if (NULL == blob || NULL == (cache = malloc(sizeof(*cache)))) {
