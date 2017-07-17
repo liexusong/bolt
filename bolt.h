@@ -34,7 +34,7 @@
 
 #define  BOLT_DATETIME_LENGTH  sizeof("Mon, 28 Sep 1970 06:00:00 GMT")
 
-#define  BOLT_VERSION  "V0.2"
+#define  BOLT_VERSION  "V0.3"
 
 typedef struct {
     char *host;
