@@ -285,7 +285,7 @@ bolt_worker_compress(
     }
 
     if (bolt_format_support(format) == -1) {
-        if (MagickSetImageFormat(wand, "jpg") == MagickFalse) {
+        if (MagickSetImageFormat(wand, "JPG") == MagickFalse) {
             bolt_log(BOLT_LOG_ERROR,
                      "Failed to set image to JPG format `%s'", path);
             goto failed;
@@ -298,9 +298,11 @@ bolt_worker_compress(
         }
     }
 
-    // if (MagickSetImageCompression(wand, JPEGCompression) == MagickFalse) {
-    //     goto failed;
-    // }
+#if 0
+    if (MagickSetImageCompression(wand, JPEGCompression) == MagickFalse) {
+        goto failed;
+    }
+#endif
 
     if ((blob = MagickGetImageBlob(wand, length)) == NULL) {
         bolt_log(BOLT_LOG_ERROR, "Failed to read image blob `%s'", path);
