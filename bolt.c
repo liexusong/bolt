@@ -139,12 +139,13 @@ bolt_clock_handler(int sock, short event, void *arg)
     /* Update current time */
     service->current_time = time(NULL);
 
-    if (service->memory_usage > setting->max_cache) {
+    if (service->memory_usage >= setting->max_cache) {
         int freesize;
         struct list_head *e, *n;
         bolt_cache_t *cache;
 
-        freesize = (service->memory_usage - setting->max_cache) * 3;
+        freesize = service->memory_usage
+                   - (setting->max_cache * setting.gc_threshold / 100);
 
         pthread_mutex_lock(&service->cache_lock);
 
