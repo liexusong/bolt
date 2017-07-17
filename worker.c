@@ -192,11 +192,6 @@ bolt_worker_get_job(bolt_task_t *task)
     last += fnlen;
     memcpy(job->path + last, ".jpg\0", 5);
 
-    bolt_log(BOLT_LOG_DEBUG,
-             "Job's width: `%d', height: `%d', "
-             "quality: `%d', extension: `%s', filename: `%s'",
-             width, height, quality, ext, job->path);
-
     return job;
 }
 
@@ -323,7 +318,7 @@ bolt_worker_process(void *arg)
 
         if ((work = bolt_worker_get_job(task)) == NULL) {
             http_code = 400;
-            bolt_log(BOLT_LOG_DEBUG,
+            bolt_log(BOLT_LOG_ERROR,
                      "Request file format was invaild `%s'", task->filename);
             goto fatal;
         }
@@ -332,7 +327,7 @@ bolt_worker_process(void *arg)
 
         if (!bolt_file_exists(work->path)) {
             http_code = 404;
-            bolt_log(BOLT_LOG_DEBUG,
+            bolt_log(BOLT_LOG_ERROR,
                      "Request file was not found `%s'", work->path);
             goto fatal;
         }
@@ -351,7 +346,7 @@ bolt_worker_process(void *arg)
 
             http_code = 500;
 
-            bolt_log(BOLT_LOG_DEBUG,
+            bolt_log(BOLT_LOG_ERROR,
                      "Failed to compress file `%s'", task->filename);
 
             goto fatal;
@@ -372,11 +367,8 @@ bolt_worker_process(void *arg)
 
         pthread_mutex_lock(&service->cache_lock);
 
-        retval = jk_hash_insert(service->cache_htb,
-                                task->filename,
-                                task->fnlen,
-                                (void *)cache,
-                                0);
+        retval = jk_hash_insert(service->cache_htb, task->filename,
+                                task->fnlen, (void *)cache, 0);
 
         if (retval == JK_HASH_OK) {
             list_add_tail(&cache->link, &service->gc_lru); /* Add LRU list */
@@ -389,15 +381,15 @@ bolt_worker_process(void *arg)
             cache = NULL;
             http_code = 500;
 
-            bolt_log(BOLT_LOG_DEBUG, "Failed to add cache to table");
+            bolt_log(BOLT_LOG_ERROR, "Failed to add cache to table");
         }
 
-        retval = jk_hash_find(service->waiting_htb,
-                              task->filename,
-                              task->fnlen,
-                              (void **)&waitq);
+        pthread_mutex_lock(&service->waitq_lock);
 
-        if (retval == JK_HASH_OK) { /* Found waiting queue */
+        retval = jk_hash_find(service->waiting_htb,
+                              task->filename, task->fnlen, (void **)&waitq);
+
+        if (retval == JK_HASH_OK) { /* Found wait queue */
 
             list_for_each(e, &waitq->wait_conns) {
                 c = list_entry(e, bolt_connection_t, link);
@@ -412,9 +404,11 @@ bolt_worker_process(void *arg)
 
             jk_hash_remove(service->waiting_htb,
                            task->filename, task->fnlen);
+
             wakeup = 1;
         }
 
+        pthread_mutex_unlock(&service->waitq_lock);
         pthread_mutex_unlock(&service->cache_lock);
 
         if (wakeup) {
@@ -431,19 +425,19 @@ bolt_worker_process(void *arg)
         continue;
 
 fatal:
-        pthread_mutex_lock(&service->cache_lock);
+        pthread_mutex_lock(&service->waitq_lock);
 
-        if (jk_hash_find(service->waiting_htb,
-                         task->filename,
-                         task->fnlen,
-                         (void **)&waitq) == JK_HASH_OK)
-        {
+        retval = jk_hash_find(service->waiting_htb,
+                              task->filename, task->fnlen, (void **)&waitq);
+
+        if (retval == JK_HASH_OK) {
             jk_hash_remove(service->waiting_htb,
                            task->filename, task->fnlen);
+
             wakeup = 1;
         }
 
-        pthread_mutex_unlock(&service->cache_lock);
+        pthread_mutex_unlock(&service->waitq_lock);
 
         if (wakeup) {
             list_for_each(e, &waitq->wait_conns) {
@@ -514,7 +508,7 @@ bolt_init_workers(int num)
             return -1;
         }
 
-        bolt_watermark_width = MagickGetImageWidth(bolt_watermark_wand);
+        bolt_watermark_width  = MagickGetImageWidth(bolt_watermark_wand);
         bolt_watermark_height = MagickGetImageHeight(bolt_watermark_wand);
     }
 

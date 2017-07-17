@@ -35,7 +35,6 @@
 #include "config.h"
 #include "utils.h"
 
-
 bolt_setting_t *setting, _setting = {
     .host = "0.0.0.0",
     .port = 80,
@@ -53,7 +52,6 @@ bolt_setting_t *setting, _setting = {
 
 bolt_service_t *service, _service;
 
-
 void
 bolt_accept_handler(int sock, short event, void *arg)
 {
@@ -62,12 +60,11 @@ bolt_accept_handler(int sock, short event, void *arg)
     int nsock;
 
     for (;;) {
+
         nsock = accept(sock, (struct sockaddr *)&addr, &size);
         if (nsock == -1) {
             return;
         }
-
-        bolt_log(BOLT_LOG_DEBUG, "Accept client connection fd `%d'", nsock);
 
         if (bolt_set_nonblock(nsock) == -1) {
             close(nsock);
@@ -83,7 +80,6 @@ bolt_accept_handler(int sock, short event, void *arg)
     }
 }
 
-
 void
 bolt_wakeup_handler(int sock, short event, void *arg)
 {
@@ -93,10 +89,12 @@ bolt_wakeup_handler(int sock, short event, void *arg)
     bolt_connection_t *c;
 
     if (sock != service->wakeup_notify[0]) {
+        bolt_log(BOLT_LOG_ERROR, "Wakeup handler called by exception");
         return;
     }
 
     for (;;) {
+
         if (read(sock, (char *)&byte, 1) != 1) {
             return;
         }
@@ -122,7 +120,6 @@ bolt_wakeup_handler(int sock, short event, void *arg)
     }
 }
 
-
 void
 bolt_clock_handler(int sock, short event, void *arg)
 {
@@ -147,27 +144,23 @@ bolt_clock_handler(int sock, short event, void *arg)
         struct list_head *e, *n;
         bolt_cache_t *cache;
 
+        freesize = (service->memory_usage - setting->max_cache) * 3;
+
         pthread_mutex_lock(&service->cache_lock);
 
         list_for_each_safe(e, n, &service->gc_lru) {
 
             cache = list_entry(e, bolt_cache_t, link);
 
-            /* Two conditions would be true
-             * 1) refcount > 0
-             * 2) last visited time in 1 hour
-             */
-            if (cache->refcount > 0 &&
-                cache->last + 3600 > service->current_time)
-            {
+            /* If this cache in used by client */
+            if (cache->refcount > 0) {
                 continue;
             }
 
             list_del(e); /* Remove from GC LRU queue */
 
             /* Remove from cache hashtable */
-            jk_hash_remove(service->cache_htb,
-                           cache->filename, cache->fnlen);
+            jk_hash_remove(service->cache_htb, cache->filename, cache->fnlen);
 
             service->memory_usage -= cache->size;
             freesize -= cache->size;
@@ -192,12 +185,12 @@ bolt_clock_handler(int sock, short event, void *arg)
     }
 }
 
-
 int bolt_init_service()
 {
     /* Init cache lock and task lock */
     if (pthread_mutex_init(&service->cache_lock, NULL) == -1
         || pthread_mutex_init(&service->task_lock, NULL) == -1
+        || pthread_mutex_init(&service->waitq_lock, NULL) == -1
         || pthread_mutex_init(&service->wakeup_lock, NULL) == -1)
     {
         bolt_log(BOLT_LOG_ERROR,
@@ -280,7 +273,6 @@ int bolt_init_service()
     return 0;
 }
 
-
 void bolt_usage()
 {
     fprintf(stderr, "                                         \n"
@@ -295,7 +287,6 @@ void bolt_usage()
     fprintf(stderr, "  -h          Display bolt's help\n\n");
     exit(0);
 }
-
 
 void bolt_parse_options(int argc, char *argv[])
 {
@@ -317,7 +308,6 @@ void bolt_parse_options(int argc, char *argv[])
         }
     }
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -355,7 +345,7 @@ int main(int argc, char *argv[])
     }
 
     bolt_clock_handler(0, 0, 0);
-    event_base_dispatch(service->ebase); /* Running */
+    event_base_dispatch(service->ebase); /* Being run */
 
     bolt_destroy_log();
 

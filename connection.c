@@ -170,6 +170,7 @@ bolt_connection_t *
 bolt_create_connection(int sock)
 {
     bolt_connection_t *c;
+    int retval;
 
     if (freeconn_count > 0) {
         c = freeconn_list[--freeconn_count];
@@ -203,9 +204,8 @@ bolt_create_connection(int sock)
 
     c->hp.data = c;
 
-    if (bolt_connection_install_revent(c,
-                                       bolt_connection_recv_handler) == -1)
-    {
+    retval = bolt_connection_install_revent(c, bolt_connection_recv_handler);
+    if (retval == -1) {
         bolt_free_connection(c);
         return NULL;
     }
@@ -330,8 +330,6 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
         return;
     }
 
-    bolt_log(BOLT_LOG_DEBUG, "Start receive data from connection `%d'", sock);
-
     remain = c->rend - c->rpos;
     if (remain <= 0) {
         bolt_free_connection(c);
@@ -354,14 +352,9 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
         return;
     }
 
-    bolt_log(BOLT_LOG_DEBUG,
-             "Received `%d' bytes from connection `%d'", nbytes, sock);
-
     c->rpos += nbytes;
 
     if (bolt_connection_recv_completed(c) == 0) {
-
-        bolt_log(BOLT_LOG_DEBUG, "Start parse client request `%d'", sock);
 
         retval = http_parser_execute(&c->hp, &http_parser_callbacks,
                                      c->rbuf, c->rlast - c->rbuf);
@@ -461,46 +454,46 @@ bolt_connection_begin_send(bolt_connection_t *c)
     switch (c->http_code) {
     case 200:
         nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
-                         "HTTP/1.1 200 OK\r\n"
-                         "Content-Type: image/jpeg\r\n"
-                         "Content-Length: %d\r\n"
-                         "Last-Modified: %s\r\n"
-                         "Server: Bolt\r\n\r\n",
+                         "HTTP/1.1 200 OK" BOLT_CRLF
+                         "Content-Type: image/jpeg" BOLT_CRLF
+                         "Content-Length: %d" BOLT_CRLF
+                         "Last-Modified: %s" BOLT_CRLF
+                         "Server: Bolt" BOLT_CRLF BOLT_CRLF,
                          c->icache->size,
                          c->icache->datetime);
         break;
 
     case 304:
         nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
-                         "HTTP/1.1 304 Not Modified\r\n"
-                         "Server: Bolt\r\n\r\n");
+                         "HTTP/1.1 304 Not Modified" BOLT_CRLF
+                         "Server: Bolt" BOLT_CRLF BOLT_CRLF);
         break;
 
     case 400:
         nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
-                         "HTTP/1.1 400 Bad Request\r\n"
-                         "Content-Type: text/html\r\n"
-                         "Content-Length: %d\r\n"
-                         "Server: Bolt\r\n\r\n",
+                         "HTTP/1.1 400 Bad Request" BOLT_CRLF
+                         "Content-Type: text/html" BOLT_CRLF
+                         "Content-Length: %d" BOLT_CRLF
+                         "Server: Bolt" BOLT_CRLF BOLT_CRLF,
                          sizeof(bolt_error_400_page) - 1);
         break;
 
     case 404:
         nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
-                         "HTTP/1.1 404 Not Found\r\n"
-                         "Content-Type: text/html\r\n"
-                         "Content-Length: %d\r\n"
-                         "Server: Bolt\r\n\r\n",
+                         "HTTP/1.1 404 Not Found" BOLT_CRLF
+                         "Content-Type: text/html" BOLT_CRLF
+                         "Content-Length: %d" BOLT_CRLF
+                         "Server: Bolt" BOLT_CRLF BOLT_CRLF,
                          sizeof(bolt_error_404_page) - 1);
         break;
 
     case 500:
     default:
         nsend = snprintf(c->wbuf, BOLT_WBUF_SIZE,
-                         "HTTP/1.1 500 Internal Server Error\r\n"
-                         "Content-Type: text/html\r\n"
-                         "Content-Length: %d\r\n"
-                         "Server: Bolt\r\n\r\n",
+                         "HTTP/1.1 500 Internal Server Error" BOLT_CRLF
+                         "Content-Type: text/html" BOLT_CRLF
+                         "Content-Length: %d" BOLT_CRLF
+                         "Server: Bolt" BOLT_CRLF BOLT_CRLF,
                          sizeof(bolt_error_500_page) - 1);
         break;
     }
@@ -518,7 +511,8 @@ bolt_connection_process_request(bolt_connection_t *c)
 {
     bolt_cache_t *cache;
     bolt_wait_queue_t *waitq;
-    int pass = 0, send = 0;
+    int dopass = 0;
+    int retval;
 
     if (c->parse_error != 0) {
         bolt_log(BOLT_LOG_ERROR,
@@ -526,13 +520,17 @@ bolt_connection_process_request(bolt_connection_t *c)
         return -1;
     }
 
-    pthread_mutex_lock(&service->cache_lock);
+    bolt_connection_remove_revent(c); /*  Remove read event */
 
-    if (jk_hash_find(service->cache_htb,
-                     c->filename,
-                     c->fnlen,
-                     (void **)&cache) == JK_HASH_OK)
-    {
+    /* First: get image from cache */
+
+    pthread_mutex_lock(&service->cache_lock); /* Lock cache */
+
+    retval = jk_hash_find(service->cache_htb,
+                          c->filename, c->fnlen, (void **)&cache);
+
+    if (retval == JK_HASH_OK) {
+
         /* Move cache to LRU tail */
         list_del(&cache->link);
         list_add_tail(&cache->link, &service->gc_lru);
@@ -547,55 +545,45 @@ bolt_connection_process_request(bolt_connection_t *c)
             cache->last = service->current_time;
         }
 
-        send = 1;
+        pthread_mutex_unlock(&service->cache_lock); /* Unlock cache */
 
-        bolt_log(BOLT_LOG_DEBUG, "Found image `%s' from cache", c->filename);
+        bolt_connection_begin_send(c);
 
-    } else {
-        if (jk_hash_find(service->waiting_htb,
-                         c->filename,
-                         c->fnlen,
-                         (void **)&waitq) == JK_HASH_ERR)
-        {
-            /* Free by bolt_wakeup_handler() */
+        return 0;
+    }
 
-            waitq = malloc(sizeof(*waitq));
-            if (NULL == waitq) {
-                pthread_mutex_unlock(&service->cache_lock);
-                bolt_log(BOLT_LOG_ERROR,
-                         "Not enough memory to alloc wait queue");
-                return -1;
-            }
+    pthread_mutex_unlock(&service->cache_lock); /* Unlock cache */
 
-            INIT_LIST_HEAD(&waitq->wait_conns);
+    pthread_mutex_lock(&service->waitq_lock); /* Lock wait queue */
 
-            jk_hash_insert(service->waiting_htb,
-                           c->filename, c->fnlen, waitq, 0);
+    retval = jk_hash_find(service->waiting_htb,
+                          c->filename, c->fnlen, (void **)&waitq);
 
-            pass = 1;
+    if (retval == JK_HASH_ERR) { /* Free by bolt_wakeup_handler() */
+
+        waitq = malloc(sizeof(*waitq));
+        if (NULL == waitq) {
+            pthread_mutex_unlock(&service->waitq_lock);
+            bolt_log(BOLT_LOG_ERROR,
+                     "Not enough memory to alloc wait queue");
+            return -1;
         }
 
-        list_add(&c->link, &waitq->wait_conns);
+        INIT_LIST_HEAD(&waitq->wait_conns);
 
-        bolt_log(BOLT_LOG_DEBUG,
-                 "Not found image `%s' from cache", c->filename);
+        jk_hash_insert(service->waiting_htb,
+                       c->filename, c->fnlen, waitq, 0);
+
+        dopass = 1;
     }
 
-    pthread_mutex_unlock(&service->cache_lock);
+    list_add(&c->link, &waitq->wait_conns);
 
-    if (pass && bolt_worker_pass_task(c) == -1) {
-        return -1;
+    pthread_mutex_unlock(&service->waitq_lock); /* Unlock wait queue */
+
+    if (dopass) {
+        return bolt_worker_pass_task(c);
     }
-
-    if (send) {
-        bolt_connection_begin_send(c);
-    }
-
-    /*
-     * Remove read event here,
-     * because we don't need read when processing request.
-     */
-    bolt_connection_remove_revent(c);
 
     return 0;
 }
@@ -661,4 +649,3 @@ bolt_connection_http_parse_value(struct http_parser *p,
 
     return 0;
 }
-

@@ -9,7 +9,6 @@
 #include "list.h"
 #include "log.h"
 
-
 #define  BOLT_MIN_CACHE_SIZE   (1024 * 1024 * 10)    /* 10MB */
 #define  BOLT_FILENAME_LENGTH  1024
 #define  BOLT_RBUF_SIZE        2048
@@ -37,7 +36,6 @@
 
 #define  BOLT_VERSION  "V0.2"
 
-
 typedef struct {
     char *host;
     short port;
@@ -53,7 +51,6 @@ typedef struct {
     int watermark_enable;
 } bolt_setting_t;
 
-
 typedef struct {
     int sock;
 
@@ -64,6 +61,7 @@ typedef struct {
     pthread_mutex_t cache_lock;
     jk_hash_t *cache_htb;
     struct list_head gc_lru;
+    pthread_mutex_t waitq_lock;
     jk_hash_t *waiting_htb;
 
     /* Task queue info */
@@ -84,7 +82,6 @@ typedef struct {
     int memory_usage;
 } bolt_service_t;
 
-
 typedef struct {
     struct list_head link;  /* Link LRU */
     int size;
@@ -96,7 +93,6 @@ typedef struct {
     char filename[BOLT_FILENAME_LENGTH];
     int fnlen;
 } bolt_cache_t;
-
 
 typedef struct {
     struct list_head link;  /* Link waiting queue/free queue */
@@ -130,19 +126,16 @@ typedef struct {
     char filename[BOLT_FILENAME_LENGTH];
 } bolt_connection_t;
 
-
 typedef struct {
     struct list_head link;  /* Link all tasks */
     int fnlen;
     char filename[BOLT_FILENAME_LENGTH];
 } bolt_task_t;
 
-
 typedef struct {
     struct list_head link;  /* Link all wait queue */
     struct list_head wait_conns;
 } bolt_wait_queue_t;
-
 
 extern bolt_setting_t *setting;
 extern bolt_service_t *service;

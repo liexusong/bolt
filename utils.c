@@ -25,13 +25,11 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-
 int
 bolt_file_exists(char *path)
 {
-   return access((const char *)path, F_OK) == 0; 
+   return access((const char *)path, F_OK) == 0;
 }
-
 
 void
 bolt_daemonize()
@@ -55,7 +53,6 @@ bolt_daemonize()
     }
 }
 
-
 char *
 bolt_strndup(char *str, int length)
 {
@@ -72,7 +69,6 @@ bolt_strndup(char *str, int length)
 
     return retval;
 }
-
 
 int
 bolt_atoi(char *start, int length, int *retval)
@@ -112,4 +108,3 @@ bolt_atoi(char *start, int length, int *retval)
 
 #undef  BOLT_DIGIT_CHAR
 }
-
