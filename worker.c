@@ -320,6 +320,7 @@ static void bolt_wakeup_cache_locked(char *queuename,
     bolt_wait_queue_t *waitq;
     bolt_connection_t *c;
     int wakeup = 0;
+    int retval;
 
     pthread_mutex_lock(&service->waitq_lock);
 
@@ -341,8 +342,7 @@ static void bolt_wakeup_cache_locked(char *queuename,
             }
         }
 
-        jk_hash_remove(service->waiting_htb,
-                       task->filename, task->fnlen);
+        jk_hash_remove(service->waiting_htb, queuename, namelen);
 
         wakeup = 1;
     }
