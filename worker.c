@@ -248,8 +248,8 @@ bolt_worker_compress(
             wm_y = orig_height - bolt_watermark_height - BOLT_WATERMARK_PADDING;
 
             ret = MagickCompositeImage(wand, bolt_watermark_wand,
-                    MagickGetImageCompose(bolt_watermark_wand),
-                    MagickFalse, wm_x, wm_y);
+                       MagickGetImageCompose(bolt_watermark_wand),
+                       MagickFalse, wm_x, wm_y);
 
             if (ret == MagickFalse) {
                 bolt_log(BOLT_LOG_ERROR,
@@ -310,6 +310,54 @@ failed:
     return NULL;
 }
 
+/*
+ * Wakeup wait queue and send cache(locked) to client
+ */
+static void bolt_wakeup_cache_locked(queuename,
+    namelen, bolt_cache_t *cache, int http_code)
+{
+    struct list_head *e;
+    bolt_wait_queue_t *waitq;
+    bolt_connection_t *c;
+    int wakeup = 0;
+
+    pthread_mutex_lock(&service->waitq_lock);
+
+    retval = jk_hash_find(service->waiting_htb,
+                          queuename, namelen, (void **)&waitq);
+
+    if (retval == JK_HASH_OK) {
+
+        list_for_each(e, &waitq->wait_conns) {
+            c = list_entry(e, bolt_connection_t, link);
+
+            c->http_code = http_code;
+
+            if (cache) {
+                cache->refcount++;
+                cache->last = service->current_time;
+
+                c->icache = cache;
+            }
+        }
+
+        jk_hash_remove(service->waiting_htb,
+                       task->filename, task->fnlen);
+
+        wakeup = 1;
+    }
+
+    pthread_mutex_unlock(&service->waitq_lock);
+
+    if (wakeup) {
+        pthread_mutex_lock(&service->wakeup_lock);
+        list_add(&waitq->link, &service->wakeup_queue);
+        pthread_mutex_unlock(&service->wakeup_lock);
+
+        write(service->wakeup_notify[1], "\0", 1);
+    }
+}
+
 void *
 bolt_worker_process(void *arg)
 {
@@ -318,16 +366,13 @@ bolt_worker_process(void *arg)
     struct list_head  *e;
     char              *blob;
     int                size;
-    bolt_cache_t      *cache;
-    bolt_wait_queue_t *waitq;
-    int                wakeup;
-    bolt_connection_t *c;
+    bolt_cache_t      *cache, *ocache;
     int                http_code;
     int                retval;
 
     for (;;) {
 
-        wakeup = 0;
+        /* Get a task from queue */
 
         pthread_mutex_lock(&service->task_lock);
 
@@ -342,6 +387,8 @@ bolt_worker_process(void *arg)
         list_del(e);
 
         pthread_mutex_unlock(&service->task_lock);
+
+        if (!task) continue;
 
         /* 1) Bad Request */
 
@@ -386,104 +433,78 @@ bolt_worker_process(void *arg)
         cache->cache = blob;
         cache->refcount = 0;
         cache->time = service->current_time;
-        cache->last = service->current_time;
         cache->fnlen = task->fnlen;
 
-        bolt_format_time(cache->datetime, cache->time);
-
         memcpy(cache->filename, task->filename, cache->fnlen);
+
+        bolt_format_time(cache->datetime, cache->time);
 
         /* Lock cache here */
 
         pthread_mutex_lock(&service->cache_lock);
 
-        retval = jk_hash_insert(service->cache_htb, task->filename,
-                                task->fnlen, (void *)cache, 0);
+        /* Try to get cache because the cache may be existsed (not often) */
+
+        retval = jk_hash_find(service->cache_htb,
+                              task->filename, task->fnlen, (void **)&ocache);
 
         if (retval == JK_HASH_OK) {
-            list_add_tail(&cache->link, &service->gc_lru); /* Add LRU list */
+
+            bolt_wakeup_cache_locked(task->filename,
+                                     task->fnlen, ocache, 200);
+
+            pthread_mutex_unlock(&service->cache_lock);
+
+            free(task);
+            free(work);
+            free(cache->cache);
+            free(cache);
+
+            bolt_log(BOLT_LOG_ERROR, "Image task processed by other thread");
+
+            continue;
+        }
+
+        retval = jk_hash_insert(service->cache_htb,
+                                task->filename, task->fnlen,
+                                (void *)cache, 0);
+
+        if (retval == JK_HASH_OK) {
+
+            /* Add LRU list */
+            list_add_tail(&cache->link, &service->gc_lru);
+
             http_code = 200;
             service->memory_usage += size;
 
         } else {
             free(cache->cache);
             free(cache);
+
             cache = NULL;
             http_code = 500;
 
             bolt_log(BOLT_LOG_ERROR, "Failed to add cache to table");
         }
 
-        pthread_mutex_lock(&service->waitq_lock);
+        bolt_wakeup_cache_locked(task->filename,
+                                 task->fnlen, cache, http_code);
 
-        retval = jk_hash_find(service->waiting_htb,
-                              task->filename, task->fnlen, (void **)&waitq);
-
-        if (retval == JK_HASH_OK) { /* Found wait queue */
-
-            list_for_each(e, &waitq->wait_conns) {
-                c = list_entry(e, bolt_connection_t, link);
-
-                c->http_code = http_code;
-
-                if (cache) {
-                    cache->refcount++;
-                    c->icache = cache;
-                }
-            }
-
-            jk_hash_remove(service->waiting_htb,
-                           task->filename, task->fnlen);
-
-            wakeup = 1;
-        }
-
-        pthread_mutex_unlock(&service->waitq_lock);
         pthread_mutex_unlock(&service->cache_lock);
 
-        if (wakeup) {
-            pthread_mutex_lock(&service->wakeup_lock);
-            list_add(&waitq->link, &service->wakeup_queue);
-            pthread_mutex_unlock(&service->wakeup_lock);
-
-            write(service->wakeup_notify[1], "\0", 1);
-        }
-
-        if (task) free(task);
-        if (work) free(work);
+        free(task);
+        free(work);
 
         continue;
 
 fatal:
-        pthread_mutex_lock(&service->waitq_lock);
 
-        retval = jk_hash_find(service->waiting_htb,
-                              task->filename, task->fnlen, (void **)&waitq);
+        bolt_wakeup_cache_locked(task->filename,
+                                 task->fnlen, NULL, http_code);
 
-        if (retval == JK_HASH_OK) {
-            jk_hash_remove(service->waiting_htb,
-                           task->filename, task->fnlen);
-
-            wakeup = 1;
-        }
-
-        pthread_mutex_unlock(&service->waitq_lock);
-
-        if (wakeup) {
-            list_for_each(e, &waitq->wait_conns) {
-                c = list_entry(e, bolt_connection_t, link);
-                c->http_code = http_code;
-            }
-
-            pthread_mutex_lock(&service->wakeup_lock);
-            list_add(&waitq->link, &service->wakeup_queue);
-            pthread_mutex_unlock(&service->wakeup_lock);
-
-            write(service->wakeup_notify[1], "\0", 1);
-        }
-
-        if (task) free(task);
         if (work) free(work);
+
+        free(task);
     }
 }
 
