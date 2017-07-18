@@ -535,7 +535,7 @@ void *
 bolt_gc_thread(void *arg)
 {
     char byte;
-    int freesize;
+    int freesize, tofree;
     struct list_head *e, *n;
     bolt_cache_t *cache;
 
@@ -545,16 +545,16 @@ bolt_gc_thread(void *arg)
             continue;
         }
 
-        bolt_log(BOLT_LOG_DEBUG, "GC thread runnig");
-
         pthread_mutex_lock(&service->cache_lock);
 
         freesize = service->memory_usage
                  - (setting->max_cache * setting->gc_threshold / 100);
 
+        tofree = freesize;
+
         list_for_each_safe(e, n, &service->gc_lru) {
 
-            if (freesize <= 0) {
+            if (tofree <= 0) {
                 break;
             }
 
@@ -572,13 +572,15 @@ bolt_gc_thread(void *arg)
 
             service->memory_usage -= cache->size;
 
-            freesize -= cache->size;
+            tofree -= cache->size;
 
             free(cache->cache);
             free(cache);
         }
 
         pthread_mutex_unlock(&service->cache_lock);
+
+        bolt_log(BOLT_LOG_DEBUG, "GC thread freed `%d' bytes memory", freesize);
     }
 }
 
