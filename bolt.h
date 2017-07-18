@@ -75,6 +75,8 @@ typedef struct {
     int wakeup_notify[2];
     struct event wakeup_event;
 
+    int gc_notify[2];
+
     time_t current_time;
     struct event clock_event;
 

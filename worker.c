@@ -32,7 +32,7 @@ typedef struct {
     int  quality;
     char format[32];
     char path[BOLT_FILENAME_LENGTH];
-} bolt_compress_t;
+} bolt_job_t;
 
 static MagickWand *bolt_watermark_wand = NULL;
 static int bolt_watermark_width;
@@ -46,7 +46,7 @@ static char *support_formats[] = {
  * Parse task to compress job
  * like: "ooooooooo.jpg-00x00_00.webp"
  */
-bolt_compress_t *
+bolt_job_t *
 bolt_worker_get_job(bolt_task_t *task)
 {
     enum {
@@ -65,7 +65,7 @@ bolt_worker_get_job(bolt_task_t *task)
     char ch;
     int width = 0, height = 0, quality = 0;
     int fnlen;
-    bolt_compress_t *job;
+    bolt_job_t *job;
     char *path;
     int plen;
 
@@ -362,7 +362,7 @@ void *
 bolt_worker_process(void *arg)
 {
     bolt_task_t       *task = NULL;
-    bolt_compress_t   *work = NULL;
+    bolt_job_t        *work = NULL;
     struct list_head  *e;
     char              *blob;
     int                size;
@@ -531,6 +531,54 @@ bolt_worker_pass_task(bolt_connection_t *c)
     return 0;
 }
 
+void *
+bolt_gc_thread(void *arg)
+{
+    char byte;
+    int freesize;
+    struct list_head *e, *n;
+    bolt_cache_t *cache;
+
+    for (;;) {
+
+        if (read(service->gc_notify[0], (char *)&byte, 1) != 1) {
+            continue;
+        }
+
+        pthread_mutex_lock(&service->cache_lock);
+
+        freesize = service->memory_usage
+                 - (setting->max_cache * setting->gc_threshold / 100);
+
+        list_for_each_safe(e, n, &service->gc_lru) {
+
+            if (freesize <= 0) {
+                break;
+            }
+
+            cache = list_entry(e, bolt_cache_t, link);
+
+            /* If this cache in used by client */
+            if (cache->refcount > 0) {
+                continue;
+            }
+
+            list_del(e); /* Remove from GC LRU queue */
+
+            /* Remove from cache hashtable */
+            jk_hash_remove(service->cache_htb, cache->filename, cache->fnlen);
+
+            service->memory_usage -= cache->size;
+            freesize -= cache->size;
+
+            free(cache->cache);
+            free(cache);
+        }
+
+        pthread_mutex_unlock(&service->cache_lock);
+    }
+}
+
 int
 bolt_init_workers(int num)
 {
@@ -568,6 +616,11 @@ bolt_init_workers(int num)
             bolt_log(BOLT_LOG_ERROR, "Failed to create worker thread");
             return -1;
         }
+    }
+
+    if (pthread_create(&tid, NULL, bolt_gc_thread, NULL) == -1) {
+        bolt_log(BOLT_LOG_ERROR, "Failed to create GC thread");
+        return -1;
     }
 
     return 0;

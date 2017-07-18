@@ -140,49 +140,7 @@ bolt_clock_handler(int sock, short event, void *arg)
     service->current_time = time(NULL);
 
     if (service->memory_usage >= setting->max_cache) {
-        int freesize;
-        struct list_head *e, *n;
-        bolt_cache_t *cache;
-
-        freesize = service->memory_usage
-                   - (setting->max_cache * setting->gc_threshold / 100);
-
-        pthread_mutex_lock(&service->cache_lock);
-
-        list_for_each_safe(e, n, &service->gc_lru) {
-
-            cache = list_entry(e, bolt_cache_t, link);
-
-            /* If this cache in used by client */
-            if (cache->refcount > 0) {
-                continue;
-            }
-
-            list_del(e); /* Remove from GC LRU queue */
-
-            /* Remove from cache hashtable */
-            jk_hash_remove(service->cache_htb, cache->filename, cache->fnlen);
-
-            service->memory_usage -= cache->size;
-            freesize -= cache->size;
-
-            free(cache->cache);
-            free(cache);
-
-            if (freesize <= 0) {
-                break;
-            }
-        }
-
-        pthread_mutex_unlock(&service->cache_lock);
-
-        gc_run++;
-    }
-
-    if (!(clock_calls++ % 60)) {
-        bolt_log(BOLT_LOG_DEBUG,
-                "Server used %d bytes memory space, GC run %d times",
-                service->memory_usage, gc_run);
+        write(service->gc_notify[1], "\0", 1); /* Notify GC thread */
     }
 }
 
@@ -234,6 +192,14 @@ int bolt_init_service()
     {
         bolt_log(BOLT_LOG_ERROR,
                  "Failed to create wakeup notify pipe");
+        return -1;
+    }
+
+    if (pipe(service->gc_notify) == -1
+        || bolt_set_nonblock(service->gc_notify[1]) == -1)
+    {
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to create GC notify pipe");
         return -1;
     }
 
