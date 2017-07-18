@@ -313,8 +313,8 @@ failed:
 /*
  * Wakeup wait queue and send cache(locked) to client
  */
-static void bolt_wakeup_cache_locked(queuename,
-    namelen, bolt_cache_t *cache, int http_code)
+static void bolt_wakeup_cache_locked(char *queuename,
+    int namelen, bolt_cache_t *cache, int http_code)
 {
     struct list_head *e;
     bolt_wait_queue_t *waitq;
