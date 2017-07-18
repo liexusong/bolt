@@ -545,6 +545,8 @@ bolt_gc_thread(void *arg)
             continue;
         }
 
+        bolt_log(BOLT_LOG_DEBUG, "GC thread runnig");
+
         pthread_mutex_lock(&service->cache_lock);
 
         freesize = service->memory_usage
@@ -569,6 +571,7 @@ bolt_gc_thread(void *arg)
             jk_hash_remove(service->cache_htb, cache->filename, cache->fnlen);
 
             service->memory_usage -= cache->size;
+
             freesize -= cache->size;
 
             free(cache->cache);
