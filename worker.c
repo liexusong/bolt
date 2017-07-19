@@ -45,7 +45,7 @@ static char *support_formats[] = {
 
 /**
  * Parse task to compress job
- * like: "ooooooooo.jpg-00x00_00.webp"
+ * like: "ooooooooo-00x00_00.webp"
  */
 bolt_job_t *
 bolt_worker_get_job(bolt_task_t *task)
