@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <MagickWand/MagickWand.h>
 #include "bolt.h"
 #include "utils.h"
@@ -294,7 +295,7 @@ bolt_worker_compress(
         goto failed;
     }
 
-    if ((blob = MagickGetImageBlob(wand, length)) == NULL) {
+    if ((blob = MagickGetImageBlob(wand, (size_t *)length)) == NULL) {
         bolt_log(BOLT_LOG_ERROR, "Failed to read image blob `%s'", path);
         goto failed;
     }
