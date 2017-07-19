@@ -476,7 +476,7 @@ bolt_connection_begin_send(bolt_connection_t *c)
                          "Content-Type: text/html" BOLT_CRLF
                          "Content-Length: %d" BOLT_CRLF
                          "Server: Bolt" BOLT_CRLF BOLT_CRLF,
-                         sizeof(bolt_error_400_page) - 1);
+                         (int)(sizeof(bolt_error_400_page) - 1));
         break;
 
     case 404:
@@ -485,7 +485,7 @@ bolt_connection_begin_send(bolt_connection_t *c)
                          "Content-Type: text/html" BOLT_CRLF
                          "Content-Length: %d" BOLT_CRLF
                          "Server: Bolt" BOLT_CRLF BOLT_CRLF,
-                         sizeof(bolt_error_404_page) - 1);
+                         (int)(sizeof(bolt_error_404_page) - 1));
         break;
 
     case 500:
@@ -495,7 +495,7 @@ bolt_connection_begin_send(bolt_connection_t *c)
                          "Content-Type: text/html" BOLT_CRLF
                          "Content-Length: %d" BOLT_CRLF
                          "Server: Bolt" BOLT_CRLF BOLT_CRLF,
-                         sizeof(bolt_error_500_page) - 1);
+                         (int)(sizeof(bolt_error_500_page) - 1));
         break;
     }
 
