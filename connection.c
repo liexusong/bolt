@@ -26,6 +26,8 @@
 #include <unistd.h>
 #include "bolt.h"
 #include "connection.h"
+#include "worker.h"
+#include "time.h"
 
 #define BOLT_MAX_FREE_CONNECTIONS  1024
 
