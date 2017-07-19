@@ -647,7 +647,7 @@ bolt_connection_http_parse_value(struct http_parser *p,
     bolt_connection_t *c = p->data;
 
     if (c->parse_field == BOLT_PARSE_FIELD_IF_MODIFIED_SINCE) {
-        c->headers.tms = bolt_parse_time(at, len);
+        c->headers.tms = bolt_parse_time((char *)at, len);
     }
 
     return 0;
