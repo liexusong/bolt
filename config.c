@@ -28,14 +28,12 @@
 
 #define  BOLT_LINE_SIZE  1024
 
-
 typedef int (*bolt_conf_handler_t)(char *, int);
 
 typedef struct {
     char *name;
     bolt_conf_handler_t handler;
 } bolt_conf_item_t;
-
 
 static int bolt_conf_parse_host(char *value, int length);
 static int bolt_conf_parse_port(char *value, int length);
@@ -44,10 +42,10 @@ static int bolt_conf_parse_logfile(char *value, int length);
 static int bolt_conf_parse_logmark(char *value, int length);
 static int bolt_conf_parse_maxcache(char *value, int length);
 static int bolt_conf_parse_gcthreshold(char *value, int length);
+static int bolt_conf_parse_nocache(char *value, int length);
 static int bolt_conf_parse_path(char *value, int length);
 static int bolt_conf_parse_watermark(char *value, int length);
 static int bolt_conf_parse_daemon(char *value, int length);
-
 
 static bolt_conf_item_t bolt_conf_imtes[] = {
     {"host",         bolt_conf_parse_host},
@@ -57,12 +55,12 @@ static bolt_conf_item_t bolt_conf_imtes[] = {
     {"logmark",      bolt_conf_parse_logmark},
     {"max-cache",    bolt_conf_parse_maxcache},
     {"gc-threshold", bolt_conf_parse_gcthreshold},
+    {"nocache",      bolt_conf_parse_nocache},
     {"path",         bolt_conf_parse_path},
     {"watermark",    bolt_conf_parse_watermark},
     {"daemon",       bolt_conf_parse_daemon},
     {NULL,           NULL},
 };
-
 
 static bolt_conf_item_t *
 bolt_conf_find_item(char *name, int length)
@@ -77,7 +75,6 @@ bolt_conf_find_item(char *name, int length)
 
     return NULL;
 }
-
 
 static int
 bolt_parse_conf(const char *start)
@@ -165,7 +162,6 @@ bolt_parse_conf(const char *start)
     return -1;
 }
 
-
 int
 bolt_read_confs(char *file)
 {
@@ -192,9 +188,7 @@ bolt_read_confs(char *file)
     return 0;
 }
 
-
 /* Parse configure file callback handler */
-
 
 static int
 bolt_conf_parse_host(char *value, int length)
@@ -205,7 +199,6 @@ bolt_conf_parse_host(char *value, int length)
     }
     return 0;
 }
-
 
 static int
 bolt_conf_parse_port(char *value, int length)
@@ -224,7 +217,6 @@ bolt_conf_parse_port(char *value, int length)
     return 0;
 }
 
-
 static int
 bolt_conf_parse_workers(char *value, int length)
 {
@@ -242,7 +234,6 @@ bolt_conf_parse_workers(char *value, int length)
     return 0;
 }
 
-
 static int
 bolt_conf_parse_logfile(char *value, int length)
 {
@@ -252,7 +243,6 @@ bolt_conf_parse_logfile(char *value, int length)
     }
     return 0;
 }
-
 
 static int
 bolt_conf_parse_logmark(char *value, int length)
@@ -270,7 +260,6 @@ bolt_conf_parse_logmark(char *value, int length)
     }
     return 0;
 }
-
 
 static int
 bolt_conf_parse_maxcache(char *value, int length)
@@ -311,7 +300,6 @@ bolt_conf_parse_maxcache(char *value, int length)
     return 0;
 }
 
-
 static int
 bolt_conf_parse_gcthreshold(char *value, int length)
 {
@@ -331,6 +319,20 @@ bolt_conf_parse_gcthreshold(char *value, int length)
     return 0;
 }
 
+static int
+bolt_conf_parse_nocache(char *value, int length)
+{
+    if (!strncasecmp(value, "YES", length)
+        || !strncasecmp(value, "1", length)
+        || !strncasecmp(value, "ON", length))
+    {
+        setting->nocache = 1;
+    } else {
+        setting->nocache = 0;
+    }
+
+    return 0;
+}
 
 static int
 bolt_conf_parse_path(char *value, int length)
@@ -349,7 +351,6 @@ bolt_conf_parse_path(char *value, int length)
     return 0;
 }
 
-
 static int
 bolt_conf_parse_watermark(char *value, int length)
 {
@@ -362,7 +363,6 @@ bolt_conf_parse_watermark(char *value, int length)
 
     return 0;
 }
-
 
 static int
 bolt_conf_parse_daemon(char *value, int length)

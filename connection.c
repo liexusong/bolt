@@ -31,7 +31,6 @@
 
 #define BOLT_MAX_FREE_CONNECTIONS  1024
 
-
 static int
 bolt_connection_process_request(bolt_connection_t *c);
 static int
@@ -48,7 +47,6 @@ bolt_connection_recv_handler(int sock, short event, void *arg);
 void
 bolt_connection_send_handler(int sock, short event, void *arg);
 
-
 static int freeconn_count;
 static void *freeconn_list[BOLT_MAX_FREE_CONNECTIONS];
 
@@ -61,7 +59,6 @@ static struct http_parser_settings http_parser_callbacks = {
     .on_body             = NULL,
     .on_message_complete = NULL
 };
-
 
 char bolt_error_400_page[] =
 "<html>"
@@ -90,14 +87,12 @@ char bolt_error_500_page[] =
 "</body>"
 "</html>";
 
-
 int
 bolt_init_connections()
 {
     freeconn_count = 0;
     return 0;
 }
-
 
 int
 bolt_connection_install_revent(bolt_connection_t *c,
@@ -122,7 +117,6 @@ bolt_connection_install_revent(bolt_connection_t *c,
     return 0;
 }
 
-
 int
 bolt_connection_install_wevent(bolt_connection_t *c,
     void (*handler)(int, short, void *))
@@ -146,7 +140,6 @@ bolt_connection_install_wevent(bolt_connection_t *c,
     return 0;
 }
 
-
 void
 bolt_connection_remove_revent(bolt_connection_t *c)
 {
@@ -157,7 +150,6 @@ bolt_connection_remove_revent(bolt_connection_t *c)
     }
 }
 
-
 void
 bolt_connection_remove_wevent(bolt_connection_t *c)
 {
@@ -167,7 +159,6 @@ bolt_connection_remove_wevent(bolt_connection_t *c)
         }
     }
 }
-
 
 bolt_connection_t *
 bolt_create_connection(int sock)
@@ -216,7 +207,6 @@ bolt_create_connection(int sock)
     return c;
 }
 
-
 void
 bolt_free_connection(bolt_connection_t *c)
 {
@@ -236,7 +226,6 @@ bolt_free_connection(bolt_connection_t *c)
         free(c);
     }
 }
-
 
 static int
 bolt_connection_recv_completed(bolt_connection_t *c)
@@ -294,7 +283,6 @@ bolt_connection_recv_completed(bolt_connection_t *c)
     return -1;
 }
 
-
 void
 bolt_connection_keepalive(bolt_connection_t *c)
 {
@@ -320,7 +308,6 @@ bolt_connection_keepalive(bolt_connection_t *c)
     bolt_connection_remove_wevent(c);
     bolt_connection_install_revent(c, bolt_connection_recv_handler);
 }
-
 
 void
 bolt_connection_recv_handler(int sock, short event, void *arg)
@@ -378,7 +365,6 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
         }
     }
 }
-
 
 void
 bolt_connection_send_handler(int sock, short event, void *arg)
@@ -448,7 +434,6 @@ bolt_connection_send_handler(int sock, short event, void *arg)
     }
 }
 
-
 void
 bolt_connection_begin_send(bolt_connection_t *c)
 {
@@ -508,7 +493,6 @@ bolt_connection_begin_send(bolt_connection_t *c)
     bolt_connection_install_wevent(c, bolt_connection_send_handler);
 }
 
-
 static int
 bolt_connection_process_request(bolt_connection_t *c)
 {
@@ -524,6 +508,10 @@ bolt_connection_process_request(bolt_connection_t *c)
     }
 
     bolt_connection_remove_revent(c); /*  Remove read event */
+
+    if (setting->nocache) { /* For testing no cache feature */
+        goto nocache;
+    }
 
     /* First: get image from cache */
 
@@ -556,6 +544,8 @@ bolt_connection_process_request(bolt_connection_t *c)
     }
 
     pthread_mutex_unlock(&service->cache_lock); /* Unlock cache */
+
+nocache:
 
     pthread_mutex_lock(&service->waitq_lock); /* Lock wait queue */
 
@@ -591,7 +581,6 @@ bolt_connection_process_request(bolt_connection_t *c)
     return 0;
 }
 
-
 static int
 bolt_connection_http_parse_url(struct http_parser *p,
     const char *at, size_t len)
@@ -625,7 +614,6 @@ bolt_connection_http_parse_url(struct http_parser *p,
     return 0;
 }
 
-
 static int
 bolt_connection_http_parse_field(struct http_parser *p,
     const char *at, size_t len)
@@ -638,7 +626,6 @@ bolt_connection_http_parse_field(struct http_parser *p,
 
     return 0;
 }
-
 
 static int
 bolt_connection_http_parse_value(struct http_parser *p,

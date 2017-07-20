@@ -45,6 +45,7 @@ typedef struct {
     int daemon;
     int max_cache;     /* The max cache size */
     int gc_threshold;  /* The range 1 ~ 100 */
+    int nocache;
     char *path;
     int path_len;
     char *watermark;

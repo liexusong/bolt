@@ -44,6 +44,7 @@ bolt_setting_t *setting, _setting = {
     .daemon = 0,
     .max_cache = BOLT_MIN_CACHE_SIZE,
     .gc_threshold = 80,
+    .nocache = 0,
     .path = NULL,
     .path_len = 0,
     .watermark = NULL,
