@@ -216,8 +216,21 @@ bolt_free_connection(bolt_connection_t *c)
     bolt_connection_remove_wevent(c);
 
     if (c->icache) {
-        c->icache->refcount--;
+        bolt_cache_t *cache = c->icache;
+
         c->icache = NULL;
+
+        cache->refcount--;
+
+        if (!cache->refcount && cache->flags == CACHE_FLAG_EXPIRED) {
+
+            LOCK_CACHE();
+            service->memory_usage -= cache->size;
+            UNLOCK_CACHE();
+
+            free(cache->cache);
+            free(cache);
+        }
     }
 
     if (freeconn_count < BOLT_MAX_FREE_CONNECTIONS) {
@@ -225,6 +238,45 @@ bolt_free_connection(bolt_connection_t *c)
     } else {
         free(c);
     }
+}
+
+void
+bolt_connection_keepalive(bolt_connection_t *c)
+{
+    if (c->icache) {
+        bolt_cache_t *cache = c->icache;
+
+        c->icache = NULL;
+
+        cache->refcount--;
+
+        if (!cache->refcount && cache->flags == CACHE_FLAG_EXPIRED) {
+
+            LOCK_CACHE();
+            service->memory_usage -= cache->size;
+            UNLOCK_CACHE();
+
+            free(cache->cache);
+            free(cache);
+        }
+    }
+
+    c->http_code = 200;
+    c->recv_state = BOLT_HTTP_STATE_START;
+    c->parse_field = BOLT_PARSE_FIELD_START;
+    c->keepalive = 0;
+    c->parse_error = 0;
+    c->header_only = 0;
+    c->rpos = c->rbuf;
+    c->rlast = c->rbuf;
+
+    c->headers.tms = 0;
+
+    http_parser_init(&c->hp, HTTP_REQUEST);
+    c->hp.data = c;
+
+    bolt_connection_remove_wevent(c);
+    bolt_connection_install_revent(c, bolt_connection_recv_handler);
 }
 
 static int
@@ -281,32 +333,6 @@ bolt_connection_recv_completed(bolt_connection_t *c)
     }
 
     return -1;
-}
-
-void
-bolt_connection_keepalive(bolt_connection_t *c)
-{
-    if (c->http_code == 200) {
-        c->icache->refcount--;
-        c->icache = NULL;
-    }
-
-    c->http_code = 200;
-    c->recv_state = BOLT_HTTP_STATE_START;
-    c->parse_field = BOLT_PARSE_FIELD_START;
-    c->keepalive = 0;
-    c->parse_error = 0;
-    c->header_only = 0;
-    c->rpos = c->rbuf;
-    c->rlast = c->rbuf;
-
-    c->headers.tms = 0;
-
-    http_parser_init(&c->hp, HTTP_REQUEST);
-    c->hp.data = c;
-
-    bolt_connection_remove_wevent(c);
-    bolt_connection_install_revent(c, bolt_connection_recv_handler);
 }
 
 void
@@ -507,7 +533,7 @@ bolt_connection_process_request(bolt_connection_t *c)
         return -1;
     }
 
-    bolt_connection_remove_revent(c); /*  Remove read event */
+    bolt_connection_remove_revent(c);
 
     if (setting->nocache) { /* For testing no cache feature */
         goto nocache;
@@ -515,7 +541,7 @@ bolt_connection_process_request(bolt_connection_t *c)
 
     /* First: get image from cache */
 
-    pthread_mutex_lock(&service->cache_lock); /* Lock cache */
+    LOCK_CACHE(); /* Lock cache */
 
     retval = jk_hash_find(service->cache_htb,
                           c->filename, c->fnlen, (void **)&cache);
@@ -532,12 +558,10 @@ bolt_connection_process_request(bolt_connection_t *c)
             /* Delete from cache hash table */
             jk_hash_remove(service->cache_htb, c->filename, c->fnlen);
 
-            /* Can not free cache now and move to station queue */
+            /* Cache was used by client and set it expired */
+            /* After sent image cache finished and free it */
             if (cache->refcount > 0) {
-                pthread_mutex_lock(&service->station_lock);
-                list_add(&cache->link, &service->cache_station);
-                pthread_mutex_unlock(&service->station_lock);
-
+                cache->flags = CACHE_FLAG_EXPIRED;
             } else {
                 service->memory_usage -= cache->size;
                 free(cache->cache);
@@ -563,17 +587,17 @@ bolt_connection_process_request(bolt_connection_t *c)
         }
 
         if (found_cache) {
-            pthread_mutex_unlock(&service->cache_lock);
+            UNLOCK_CACHE();
             bolt_connection_begin_send(c);
             return 0;
         }
     }
 
-    pthread_mutex_unlock(&service->cache_lock); /* Unlock cache */
+    UNLOCK_CACHE();
 
 nocache:
 
-    pthread_mutex_lock(&service->waitq_lock); /* Lock wait queue */
+    LOCK_WAITQUEUE(); /* Lock wait queue */
 
     retval = jk_hash_find(service->waiting_htb,
                           c->filename, c->fnlen, (void **)&waitq);
@@ -581,10 +605,10 @@ nocache:
     if (retval == JK_HASH_ERR) { /* Free by bolt_wakeup_handler() */
 
         waitq = malloc(sizeof(*waitq));
-        if (NULL == waitq) {
-            pthread_mutex_unlock(&service->waitq_lock);
-            bolt_log(BOLT_LOG_ERROR,
-                     "Not enough memory to alloc wait queue");
+
+        if (!waitq) {
+            UNLOCK_WAITQUEUE();
+            bolt_log(BOLT_LOG_ERROR, "Not enough memory to alloc wait queue");
             return -1;
         }
 
@@ -598,7 +622,7 @@ nocache:
 
     list_add(&c->link, &waitq->wait_conns);
 
-    pthread_mutex_unlock(&service->waitq_lock); /* Unlock wait queue */
+    UNLOCK_WAITQUEUE();
 
     if (dopass) {
         return bolt_worker_pass_task(c);

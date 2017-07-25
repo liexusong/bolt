@@ -34,7 +34,7 @@
 
 #define  BOLT_DATETIME_LENGTH  sizeof("Mon, 28 Sep 1970 06:00:00 GMT")
 
-#define  BOLT_VERSION  "V0.3"
+#define  BOLT_VERSION  "V1.0"
 
 typedef struct {
     char *host;
@@ -66,9 +66,6 @@ typedef struct {
     pthread_mutex_t waitq_lock;
     jk_hash_t *waiting_htb;
 
-    struct list_head cache_station;
-    pthread_mutex_t station_lock;
-
     /* Task queue info */
     pthread_mutex_t task_lock;
     pthread_cond_t task_cond;
@@ -89,10 +86,14 @@ typedef struct {
     int memory_usage;
 } bolt_service_t;
 
+#define CACHE_FLAG_INUSED   0
+#define CACHE_FLAG_EXPIRED  1
+
 typedef struct {
     struct list_head link;  /* Link LRU */
     int size;
     int refcount;
+    int flags;
     void *cache;
     time_t time;
     time_t last;
@@ -147,5 +148,14 @@ typedef struct {
 
 extern bolt_setting_t *setting;
 extern bolt_service_t *service;
+
+#define LOCK_CACHE()        pthread_mutex_lock(&service->cache_lock)
+#define UNLOCK_CACHE()      pthread_mutex_unlock(&service->cache_lock)
+#define LOCK_WAITQUEUE()    pthread_mutex_lock(&service->waitq_lock)
+#define UNLOCK_WAITQUEUE()  pthread_mutex_unlock(&service->waitq_lock)
+#define LOCK_TASK()         pthread_mutex_lock(&service->task_lock)
+#define UNLOCK_TASK()       pthread_mutex_unlock(&service->task_lock)
+#define LOCK_WAKEUP()       pthread_mutex_lock(&service->wakeup_lock)
+#define UNLOCK_WAKEUP()     pthread_mutex_unlock(&service->wakeup_lock)
 
 #endif

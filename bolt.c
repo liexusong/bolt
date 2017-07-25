@@ -151,8 +151,7 @@ int bolt_init_service()
     if (pthread_mutex_init(&service->cache_lock, NULL) == -1
         || pthread_mutex_init(&service->task_lock, NULL) == -1
         || pthread_mutex_init(&service->waitq_lock, NULL) == -1
-        || pthread_mutex_init(&service->wakeup_lock, NULL) == -1
-        || pthread_mutex_init(&service->station_lock, NULL) == -1)
+        || pthread_mutex_init(&service->wakeup_lock, NULL) == -1)
     {
         bolt_log(BOLT_LOG_ERROR,
                  "Failed to initialize service's locks");
@@ -178,11 +177,9 @@ int bolt_init_service()
     INIT_LIST_HEAD(&service->gc_lru);
     INIT_LIST_HEAD(&service->task_queue);
     INIT_LIST_HEAD(&service->wakeup_queue);
-    INIT_LIST_HEAD(&service->cache_station);
 
     /* Create listen socket */
-    service->sock = bolt_listen_socket(setting->host,
-                                       setting->port, 1);
+    service->sock = bolt_listen_socket(setting->host, setting->port, 1);
     if (service->sock == -1) {
         bolt_log(BOLT_LOG_ERROR,
                  "Failed to create listen socket");

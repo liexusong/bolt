@@ -323,7 +323,7 @@ static void bolt_wakeup_cache_locked(char *queuename,
     int wakeup = 0;
     int retval;
 
-    pthread_mutex_lock(&service->waitq_lock);
+    LOCK_WAITQUEUE();
 
     retval = jk_hash_find(service->waiting_htb,
                           queuename, namelen, (void **)&waitq);
@@ -348,12 +348,13 @@ static void bolt_wakeup_cache_locked(char *queuename,
         wakeup = 1;
     }
 
-    pthread_mutex_unlock(&service->waitq_lock);
+    UNLOCK_WAITQUEUE();
 
     if (wakeup) {
-        pthread_mutex_lock(&service->wakeup_lock);
+
+        LOCK_WAKEUP();
         list_add(&waitq->link, &service->wakeup_queue);
-        pthread_mutex_unlock(&service->wakeup_lock);
+        UNLOCK_WAKEUP();
 
         write(service->wakeup_notify[1], "\0", 1);
     }
@@ -375,7 +376,7 @@ bolt_worker_process(void *arg)
 
         /* Get a task from queue */
 
-        pthread_mutex_lock(&service->task_lock);
+        LOCK_TASK();
 
         while (list_empty(&service->task_queue)) {
             pthread_cond_wait(&service->task_cond, &service->task_lock);
@@ -387,7 +388,7 @@ bolt_worker_process(void *arg)
 
         list_del(e);
 
-        pthread_mutex_unlock(&service->task_lock);
+        UNLOCK_TASK();
 
         if (!task) continue;
 
@@ -433,6 +434,7 @@ bolt_worker_process(void *arg)
         cache->size = size;
         cache->cache = blob;
         cache->refcount = 0;
+        cache->flags = CACHE_FLAG_INUSED;
         cache->time = service->current_time;
         cache->life_time = cache->time + setting->cache_life;
         cache->fnlen = task->fnlen;
@@ -443,7 +445,7 @@ bolt_worker_process(void *arg)
 
         /* Lock cache here */
 
-        pthread_mutex_lock(&service->cache_lock);
+        LOCK_CACHE();
 
         /* Try to get cache because the cache may be existsed (not often) */
 
@@ -455,14 +457,14 @@ bolt_worker_process(void *arg)
             bolt_wakeup_cache_locked(task->filename,
                                      task->fnlen, ocache, 200);
 
-            pthread_mutex_unlock(&service->cache_lock);
+            UNLOCK_CACHE();
 
             free(task);
             free(work);
             free(cache->cache);
             free(cache);
 
-            bolt_log(BOLT_LOG_ERROR, "Image task processed by other thread");
+            bolt_log(BOLT_LOG_ERROR, "Request processed by other thread");
 
             continue;
         }
@@ -477,6 +479,7 @@ bolt_worker_process(void *arg)
             list_add_tail(&cache->link, &service->gc_lru);
 
             http_code = 200;
+
             service->memory_usage += size;
 
         } else {
@@ -486,13 +489,13 @@ bolt_worker_process(void *arg)
             cache = NULL;
             http_code = 500;
 
-            bolt_log(BOLT_LOG_ERROR, "Failed to add cache to table");
+            bolt_log(BOLT_LOG_ERROR, "Failed to add cache to hash table");
         }
 
         bolt_wakeup_cache_locked(task->filename,
                                  task->fnlen, cache, http_code);
 
-        pthread_mutex_unlock(&service->cache_lock);
+        UNLOCK_CACHE();
 
         free(task);
         free(work);
@@ -525,10 +528,13 @@ bolt_worker_pass_task(bolt_connection_t *c)
     task->filename[c->fnlen] = 0;
     task->fnlen = c->fnlen;
 
-    pthread_mutex_lock(&service->task_lock);
+    LOCK_TASK();
+
     list_add(&task->link, &service->task_queue);
+
     pthread_cond_signal(&service->task_cond);
-    pthread_mutex_unlock(&service->task_lock);
+
+    UNLOCK_TASK();
 
     return 0;
 }
@@ -547,7 +553,7 @@ bolt_gc_thread(void *arg)
             continue;
         }
 
-        pthread_mutex_lock(&service->cache_lock);
+        LOCK_CACHE();
 
         freesize = service->memory_usage
                  - (setting->max_cache * setting->gc_threshold / 100);
@@ -580,53 +586,9 @@ bolt_gc_thread(void *arg)
             free(cache);
         }
 
-        pthread_mutex_unlock(&service->cache_lock);
+        UNLOCK_CACHE();
 
         bolt_log(BOLT_LOG_DEBUG, "Freed `%d' bytes by GC thread", freesize);
-    }
-
-    return NULL;
-}
-
-void *
-bolt_station_thread(void *arg)
-{
-    struct list_head *e, *n;
-    bolt_cache_t *cache;
-    int total_freed = 0;
-
-    for (;;) {
-
-        pthread_mutex_lock(&service->station_lock);
-
-        list_for_each_safe(e, n, &service->cache_station) {
-
-            cache = list_entry(e, bolt_cache_t, link);
-
-            /* If this cache in used by client skip it */
-            if (cache->refcount > 0) {
-                continue;
-            }
-
-            list_del(e); /* Remove from cache station queue */
-
-            total_freed += cache->size;
-
-            free(cache->cache);
-            free(cache);
-        }
-
-        pthread_mutex_unlock(&service->station_lock);
-
-        if (total_freed > 0) {
-            pthread_mutex_lock(&service->cache_lock);
-            service->memory_usage -= total_freed;
-            pthread_mutex_unlock(&service->cache_lock);
-            bolt_log(BOLT_LOG_DEBUG,
-                     "Freed `%d' bytes by station thread", total_freed);
-        }
-
-        sleep(1);
     }
 
     return NULL;
@@ -673,11 +635,6 @@ bolt_init_workers(int num)
 
     if (pthread_create(&tid, NULL, bolt_gc_thread, NULL) == -1) {
         bolt_log(BOLT_LOG_ERROR, "Failed to create GC thread");
-        return -1;
-    }
-
-    if (pthread_create(&tid, NULL, bolt_station_thread, NULL) == -1) {
-        bolt_log(BOLT_LOG_ERROR, "Failed to create station thread");
         return -1;
     }
 
