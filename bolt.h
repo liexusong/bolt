@@ -89,14 +89,10 @@ typedef struct {
     int memory_usage;
 } bolt_service_t;
 
-#define CACHE_IN_CACHE    1
-#define CACHE_IN_STATION  2
-
 typedef struct {
     struct list_head link;  /* Link LRU */
     int size;
     int refcount;
-    int flags;
     void *cache;
     time_t time;
     time_t last;

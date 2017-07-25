@@ -432,7 +432,6 @@ bolt_worker_process(void *arg)
 
         cache->size = size;
         cache->cache = blob;
-        cache->flags = CACHE_IN_CACHE;
         cache->refcount = 0;
         cache->time = service->current_time;
         cache->life_time = cache->time + setting->cache_life;
