@@ -582,7 +582,7 @@ bolt_gc_thread(void *arg)
 
         pthread_mutex_unlock(&service->cache_lock);
 
-        bolt_log(BOLT_LOG_DEBUG, "GC thread freed `%d' bytes memory", freesize);
+        bolt_log(BOLT_LOG_DEBUG, "Freed `%d' bytes by GC thread", freesize);
     }
 
     return NULL;
@@ -622,6 +622,8 @@ bolt_station_thread(void *arg)
             pthread_mutex_lock(&service->cache_lock);
             service->memory_usage -= total_freed;
             pthread_mutex_unlock(&service->cache_lock);
+            bolt_log(BOLT_LOG_DEBUG,
+                     "Freed `%d' bytes by station thread", total_freed);
         }
 
         sleep(1);
