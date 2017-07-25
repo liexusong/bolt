@@ -210,10 +210,10 @@ bolt_create_connection(int sock)
 void
 bolt_free_connection(bolt_connection_t *c)
 {
-    close(c->sock);
-
     bolt_connection_remove_revent(c);
     bolt_connection_remove_wevent(c);
+
+    close(c->sock);
 
     if (c->icache) {
         bolt_cache_t *cache = c->icache;
@@ -626,8 +626,6 @@ nocache:
     list_add(&c->link, &waitq->wait_conns);
 
     UNLOCK_WAITQUEUE();
-
-    bolt_log(BOLT_LOG_DEBUG, "Waiting process request socket(%d)", c->sock);
 
     if (dopass) {
         return bolt_worker_pass_task(c);
