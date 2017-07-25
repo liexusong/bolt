@@ -627,6 +627,8 @@ nocache:
 
     UNLOCK_WAITQUEUE();
 
+    bolt_log(BOLT_LOG_DEBUG, "Waiting process request socket(%d)", c->sock);
+
     if (dopass) {
         return bolt_worker_pass_task(c);
     }
