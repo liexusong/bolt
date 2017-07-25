@@ -360,7 +360,7 @@ bolt_connection_recv_handler(int sock, short event, void *arg)
             bolt_free_connection(c);
             bolt_log(BOLT_LOG_ERROR,
                      "Connection read error, socket(%d), errno(%d)",
-                     c->sock, errno);
+                     sock, errno);
         }
         return;
 
@@ -412,8 +412,9 @@ bolt_connection_send_handler(int sock, short event, void *arg)
             bolt_free_connection(c);
             bolt_log(BOLT_LOG_ERROR,
                      "Connection write error, socket(%d), errno(%d)",
-                     c->sock, errno);
+                     sock, errno);
         }
+
         return;
 
     } else if (nbytes == 0) {
