@@ -396,7 +396,7 @@ bolt_worker_process(void *arg)
 
         if ((work = bolt_worker_get_job(task)) == NULL) {
             http_code = 400;
-            bolt_log(BOLT_LOG_ERROR,
+            bolt_log(BOLT_LOG_DEBUG,
                      "Request file format was invaild `%s'", task->filename);
             goto fatal;
         }
@@ -405,7 +405,7 @@ bolt_worker_process(void *arg)
 
         if (!bolt_file_exists(work->path)) {
             http_code = 404;
-            bolt_log(BOLT_LOG_ERROR,
+            bolt_log(BOLT_LOG_DEBUG,
                      "Request file was not found `%s'", work->path);
             goto fatal;
         }
@@ -463,8 +463,6 @@ bolt_worker_process(void *arg)
             free(work);
             free(cache->cache);
             free(cache);
-
-            bolt_log(BOLT_LOG_ERROR, "Request processed by other thread");
 
             continue;
         }

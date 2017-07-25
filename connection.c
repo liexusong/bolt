@@ -201,6 +201,8 @@ bolt_create_connection(int sock)
     retval = bolt_connection_install_revent(c, bolt_connection_recv_handler);
     if (retval == -1) {
         bolt_free_connection(c);
+        bolt_log(BOLT_LOG_ERROR,
+                 "Failed to install read event socket(%d)", sock);
         return NULL;
     }
 

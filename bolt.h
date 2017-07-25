@@ -151,10 +151,13 @@ extern bolt_service_t *service;
 
 #define LOCK_CACHE()        pthread_mutex_lock(&service->cache_lock)
 #define UNLOCK_CACHE()      pthread_mutex_unlock(&service->cache_lock)
+
 #define LOCK_WAITQUEUE()    pthread_mutex_lock(&service->waitq_lock)
 #define UNLOCK_WAITQUEUE()  pthread_mutex_unlock(&service->waitq_lock)
+
 #define LOCK_TASK()         pthread_mutex_lock(&service->task_lock)
 #define UNLOCK_TASK()       pthread_mutex_unlock(&service->task_lock)
+
 #define LOCK_WAKEUP()       pthread_mutex_lock(&service->wakeup_lock)
 #define UNLOCK_WAKEUP()     pthread_mutex_unlock(&service->wakeup_lock)
 
