@@ -100,7 +100,10 @@ bolt_wakeup_handler(int sock, short event, void *arg)
             return;
         }
 
-        pthread_mutex_lock(&service->wakeup_lock);
+again:
+        waitq = NULL;
+
+        LOCK_WAKEUP();
 
         e = service->wakeup_queue.next;
         if (e != &service->wakeup_queue) {
@@ -108,7 +111,7 @@ bolt_wakeup_handler(int sock, short event, void *arg)
             list_del(e);
         }
 
-        pthread_mutex_unlock(&service->wakeup_lock);
+        UNLOCK_WAKEUP();
 
         if (waitq) {
             list_for_each(e, &waitq->wait_conns) {
@@ -117,6 +120,8 @@ bolt_wakeup_handler(int sock, short event, void *arg)
             }
 
             free(waitq);
+
+            goto again;
         }
     }
 }
