@@ -522,25 +522,51 @@ bolt_connection_process_request(bolt_connection_t *c)
 
     if (retval == JK_HASH_OK) {
 
-        /* Move cache to LRU tail */
-        list_del(&cache->link);
-        list_add_tail(&cache->link, &service->gc_lru);
+        int found_cache = 1;
 
-        if (cache->time == c->headers.tms) {
-            c->http_code = 304;
-            c->header_only = 1;
+        /* Cache expired*/
+        if (cache->life_time < service->current_time) {
+
+            /* Delete from LRU list */
+            list_del(&cache->link);
+            /* Delete from cache hash table */
+            jk_hash_remove(service->cache_htb, c->filename, c->fnlen);
+
+            /* Can not free cache now and move to station queue */
+            if (cache->refcount > 0) {
+                pthread_mutex_lock(&service->station_lock);
+                list_add(&cache->link, &service->cache_station);
+                pthread_mutex_unlock(&service->station_lock);
+
+            } else {
+                service->memory_usage -= cache->size;
+                free(cache->cache);
+                free(cache);
+            }
+
+            found_cache = 0;
+
         } else {
-            c->http_code = 200;
-            c->icache = cache;
-            cache->refcount++;
-            cache->last = service->current_time;
+            /* Move cache to LRU tail */
+            list_del(&cache->link);
+            list_add_tail(&cache->link, &service->gc_lru);
+
+            if (cache->time == c->headers.tms) {
+                c->http_code = 304;
+                c->header_only = 1;
+            } else {
+                c->http_code = 200;
+                c->icache = cache;
+                cache->refcount++;
+                cache->last = service->current_time;
+            }
         }
 
-        pthread_mutex_unlock(&service->cache_lock); /* Unlock cache */
-
-        bolt_connection_begin_send(c);
-
-        return 0;
+        if (found_cache) {
+            pthread_mutex_unlock(&service->cache_lock);
+            bolt_connection_begin_send(c);
+            return 0;
+        }
     }
 
     pthread_mutex_unlock(&service->cache_lock); /* Unlock cache */

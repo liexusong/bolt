@@ -432,8 +432,10 @@ bolt_worker_process(void *arg)
 
         cache->size = size;
         cache->cache = blob;
+        cache->flags = CACHE_IN_CACHE;
         cache->refcount = 0;
         cache->time = service->current_time;
+        cache->life_time = cache->time + setting->cache_life;
         cache->fnlen = task->fnlen;
 
         memcpy(cache->filename, task->filename, cache->fnlen);
@@ -561,14 +563,14 @@ bolt_gc_thread(void *arg)
 
             cache = list_entry(e, bolt_cache_t, link);
 
-            /* If this cache in used by client */
+            /* If this cache in used by client skip it */
             if (cache->refcount > 0) {
                 continue;
             }
 
             list_del(e); /* Remove from GC LRU queue */
 
-            /* Remove from cache hashtable */
+            /* Remove from cache hash table */
             jk_hash_remove(service->cache_htb, cache->filename, cache->fnlen);
 
             service->memory_usage -= cache->size;
@@ -583,6 +585,50 @@ bolt_gc_thread(void *arg)
 
         bolt_log(BOLT_LOG_DEBUG, "GC thread freed `%d' bytes memory", freesize);
     }
+
+    return NULL;
+}
+
+void *
+bolt_station_thread(void *arg)
+{
+    struct list_head *e, *n;
+    bolt_cache_t *cache;
+    int total_freed = 0;
+
+    for (;;) {
+
+        pthread_mutex_lock(&service->station_lock);
+
+        list_for_each_safe(e, n, &service->cache_station) {
+
+            cache = list_entry(e, bolt_cache_t, link);
+
+            /* If this cache in used by client skip it */
+            if (cache->refcount > 0) {
+                continue;
+            }
+
+            list_del(e); /* Remove from cache station queue */
+
+            total_freed += cache->size;
+
+            free(cache->cache);
+            free(cache);
+        }
+
+        pthread_mutex_unlock(&service->station_lock);
+
+        if (total_freed > 0) {
+            pthread_mutex_lock(&service->cache_lock);
+            service->memory_usage -= total_freed;
+            pthread_mutex_unlock(&service->cache_lock);
+        }
+
+        sleep(1);
+    }
+
+    return NULL;
 }
 
 int
@@ -626,6 +672,11 @@ bolt_init_workers(int num)
 
     if (pthread_create(&tid, NULL, bolt_gc_thread, NULL) == -1) {
         bolt_log(BOLT_LOG_ERROR, "Failed to create GC thread");
+        return -1;
+    }
+
+    if (pthread_create(&tid, NULL, bolt_station_thread, NULL) == -1) {
+        bolt_log(BOLT_LOG_ERROR, "Failed to create station thread");
         return -1;
     }
 

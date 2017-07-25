@@ -45,6 +45,7 @@ typedef struct {
     int daemon;
     int max_cache;     /* The max cache size */
     int gc_threshold;  /* The range 1 ~ 100 */
+    int cache_life;
     int nocache;
     char *path;
     int path_len;
@@ -64,6 +65,9 @@ typedef struct {
     struct list_head gc_lru;
     pthread_mutex_t waitq_lock;
     jk_hash_t *waiting_htb;
+
+    struct list_head cache_station;
+    pthread_mutex_t station_lock;
 
     /* Task queue info */
     pthread_mutex_t task_lock;
@@ -85,13 +89,18 @@ typedef struct {
     int memory_usage;
 } bolt_service_t;
 
+#define CACHE_IN_CACHE    1
+#define CACHE_IN_STATION  2
+
 typedef struct {
     struct list_head link;  /* Link LRU */
     int size;
     int refcount;
+    int flags;
     void *cache;
     time_t time;
     time_t last;
+    time_t life_time;
     char datetime[BOLT_DATETIME_LENGTH];
     char filename[BOLT_FILENAME_LENGTH];
     int fnlen;

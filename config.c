@@ -42,6 +42,7 @@ static int bolt_conf_parse_logfile(char *value, int length);
 static int bolt_conf_parse_logmark(char *value, int length);
 static int bolt_conf_parse_maxcache(char *value, int length);
 static int bolt_conf_parse_gcthreshold(char *value, int length);
+static int bolt_conf_parse_cachelife(char *value, int length);
 static int bolt_conf_parse_nocache(char *value, int length);
 static int bolt_conf_parse_path(char *value, int length);
 static int bolt_conf_parse_watermark(char *value, int length);
@@ -55,6 +56,7 @@ static bolt_conf_item_t bolt_conf_imtes[] = {
     {"logmark",      bolt_conf_parse_logmark},
     {"max-cache",    bolt_conf_parse_maxcache},
     {"gc-threshold", bolt_conf_parse_gcthreshold},
+    {"cache-life",   bolt_conf_parse_cachelife},
     {"nocache",      bolt_conf_parse_nocache},
     {"path",         bolt_conf_parse_path},
     {"watermark",    bolt_conf_parse_watermark},
@@ -314,6 +316,23 @@ bolt_conf_parse_gcthreshold(char *value, int length)
         || setting->gc_threshold >= 100)
     {
         setting->gc_threshold = 80;
+    }
+
+    return 0;
+}
+
+static int
+bolt_conf_parse_cachelife(char *value, int length)
+{
+    int retval;
+
+    retval = bolt_atoi(value, length, &setting->cache_life);
+    if (retval == -1) {
+        return -1;
+    }
+
+    if (setting->cache_life <= 0) {
+        setting->cache_life = 300;  /* 5 min */
     }
 
     return 0;
