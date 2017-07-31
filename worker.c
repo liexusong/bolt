@@ -216,7 +216,7 @@ int bolt_format_support(char *format)
 char *
 bolt_worker_compress(
     char *path, int quality, int width,
-    int height, char *format, int *length)
+    int height, char *format, size_t *size)
 {
     MagickWand *wand = NULL;
     int orig_width, orig_height;
@@ -295,7 +295,7 @@ bolt_worker_compress(
         goto failed;
     }
 
-    if ((blob = MagickGetImageBlob(wand, (size_t *)length)) == NULL) {
+    if ((blob = MagickGetImageBlob(wand, size)) == NULL) {
         bolt_log(BOLT_LOG_ERROR, "Failed to read image blob `%s'", path);
         goto failed;
     }
@@ -363,11 +363,12 @@ static void bolt_wakeup_cache_locked(char *queuename,
 void *
 bolt_worker_process(void *arg)
 {
-    bolt_task_t       *task = NULL;
-    bolt_job_t        *work = NULL;
+    bolt_task_t       *tsk = NULL;
+    bolt_task_t       *bak = NULL;
+    bolt_job_t        *job = NULL;
     struct list_head  *e;
     char              *blob;
-    int                size;
+    size_t             size;
     bolt_cache_t      *cache, *ocache;
     int                http_code;
     int                retval;
@@ -384,62 +385,67 @@ bolt_worker_process(void *arg)
 
         e = service->task_queue.next;
 
-        task = list_entry(e, bolt_task_t, link);
+        tsk = list_entry(e, bolt_task_t, link);
 
         list_del(e);
 
         UNLOCK_TASK();
 
-        if (!task) continue;
+        if (!tsk) continue;
 
         /* 1) Bad Request */
 
-        if ((work = bolt_worker_get_job(task)) == NULL) {
+        if ((job = bolt_worker_get_job(tsk)) == NULL) {
             http_code = 400;
             bolt_log(BOLT_LOG_DEBUG,
-                     "Request file format was invaild `%s'", task->filename);
+                     "Request file format was invaild `%s'", tsk->filename);
             goto fatal;
         }
 
         /* 2) Not Found */
 
-        if (!bolt_file_exists(work->path)) {
+        if (!bolt_file_exists(job->path)) {
             http_code = 404;
             bolt_log(BOLT_LOG_DEBUG,
-                     "Request file was not found `%s'", work->path);
+                     "Request file was not found `%s'", job->path);
             goto fatal;
         }
 
         /* 3) Internal Server Error */
 
-        blob = bolt_worker_compress(work->path,
-                                    work->quality,
-                                    work->width,
-                                    work->height,
-                                    work->format,
+        blob = bolt_worker_compress(job->path,
+                                    job->quality,
+                                    job->width,
+                                    job->height,
+                                    job->format,
                                     &size);
 
-        if (NULL == blob || NULL == (cache = malloc(sizeof(*cache)))) {
+        if (!blob || !(cache = malloc(sizeof(*cache)))) {
 
             if (blob) free(blob);
 
             http_code = 500;
 
-            bolt_log(BOLT_LOG_ERROR,
-                     "Failed to compress file `%s'", task->filename);
+            if (!blob) {
+                bolt_log(BOLT_LOG_ERROR,
+                         "Failed to compress file `%s'", tsk->filename);
+            } else {
+                bolt_log(BOLT_LOG_ERROR,
+                         "Not enough memory from alloc cache struct");
+            }
 
             goto fatal;
         }
 
-        cache->size = size;
+        cache->size = (int)size;
         cache->cache = blob;
         cache->refcount = 0;
         cache->flags = CACHE_FLAG_INUSED;
         cache->time = service->current_time;
         cache->life_time = cache->time + setting->cache_life;
-        cache->fnlen = task->fnlen;
+        cache->fnlen = tsk->fnlen;
 
-        memcpy(cache->filename, task->filename, cache->fnlen);
+        memcpy(cache->filename, tsk->filename, cache->fnlen);
 
         bolt_format_time(cache->datetime, cache->time);
 
@@ -450,17 +456,17 @@ bolt_worker_process(void *arg)
         /* Try to get cache because the cache may be existsed (not often) */
 
         retval = jk_hash_find(service->cache_htb,
-                              task->filename, task->fnlen, (void **)&ocache);
+                              tsk->filename, tsk->fnlen, (void **)&ocache);
 
         if (retval == JK_HASH_OK) {
 
-            bolt_wakeup_cache_locked(task->filename,
-                                     task->fnlen, ocache, 200);
+            bolt_wakeup_cache_locked(tsk->filename,
+                                     tsk->fnlen, ocache, 200);
 
             UNLOCK_CACHE();
 
-            free(task);
-            free(work);
+            free(tsk);
+            free(job);
             free(cache->cache);
             free(cache);
 
@@ -468,7 +474,7 @@ bolt_worker_process(void *arg)
         }
 
         retval = jk_hash_insert(service->cache_htb,
-                                task->filename, task->fnlen,
+                                tsk->filename, tsk->fnlen,
                                 (void *)cache, 0);
 
         if (retval == JK_HASH_OK) {
@@ -490,24 +496,24 @@ bolt_worker_process(void *arg)
             bolt_log(BOLT_LOG_ERROR, "Failed to add cache to hash table");
         }
 
-        bolt_wakeup_cache_locked(task->filename,
-                                 task->fnlen, cache, http_code);
+        bolt_wakeup_cache_locked(tsk->filename,
+                                 tsk->fnlen, cache, http_code);
 
         UNLOCK_CACHE();
 
-        free(task);
-        free(work);
+        free(tsk);
+        free(job);
 
         continue;
 
 fatal:
 
-        bolt_wakeup_cache_locked(task->filename,
-                                 task->fnlen, NULL, http_code);
+        bolt_wakeup_cache_locked(tsk->filename,
+                                 tsk->fnlen, NULL, http_code);
 
-        if (work) free(work);
+        if (job) free(job);
 
-        free(task);
+        free(tsk);
     }
 }
 
