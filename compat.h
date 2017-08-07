@@ -1,8 +1,7 @@
 #ifdef __LIBGM__
 #include <wand/magick_wand.h>
 
-#define MagickWandGenesis()                                    \
-                InitializeMagick(NULL)
+#define MagickWandGenesis()
 #define MagickGetImageBlob(wand, size)                         \
                 MagickWriteImageBlob(wand, size)
 #define MagickSetImageCompressionQuality(wand, quality)        \
