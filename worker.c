@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <MagickWand/MagickWand.h>
+#include "compat.h"
 #include "bolt.h"
 #include "utils.h"
 #include "time.h"
