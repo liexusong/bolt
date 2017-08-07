@@ -9,7 +9,7 @@
 #define MagickCompositeImage(wand, cwand, compose, bool, x, y)  \
                 MagickCompositeImage(wand, cwand, compose, x, y)
 #define MagickResizeImage(wand, width, height, filter)          \
-                MagickResizeImage(wand, width, height, filter, 0.0)
+                MagickResizeImage(wand, width, height, filter, 1.0)
 
 #else
 #include <MagickWand/MagickWand.h>
